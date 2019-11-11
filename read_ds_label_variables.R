@@ -95,6 +95,7 @@ rm("cb_17_full", "cb_17_path", "cb_17_path_raw",
 
 
 
+
 # Read and format data ---------------------------------------------------------------
 
 
@@ -102,29 +103,38 @@ rm("cb_17_full", "cb_17_path", "cb_17_path_raw",
 
 recode_variables <- function(my_var_name, data, codebook) {
   
-  my_cb <- filter(codebook, var_name == my_var_name) %>% 
+  my_cb <- filter(codebook, str_detect(var_name, my_var_name)) %>% 
     pivot_wider(names_from = var_name, values_from = var_level)
   
-  matched <- match(data[[my_var_name]], my_cb[[my_var_name]])
+  var_coding_in_ds <- pull(select(data, matches(my_var_name)))
+  var_coding_in_cb <- pull(select(my_cb, matches(my_var_name)))
+  
+  matched <- match(var_coding_in_ds, var_coding_in_cb)
   
   map_chr(matched, function(x) my_cb$var_label[x])
   
   
 }
 
-# Format data of SwiSCI pathway 2, survey 2012
+
+# Read and format data of SwiSCI pathway 2, survey 2012 ----------------------------
 
 
 # Preparations
 
 path_ds <- "data/2019-C-006_2012__2019_10_22.csv"
 
-my_vars_all <- c("id_swisci", "sex", "age_quest_admin", "sci_type", "sci_degree", 
-             "time_since_sci", "sci_cause_type", "medstat")
+my_vars_all <- c("id_swisci", "sex", "age_quest", "sci_type", "sci_degree", 
+                 "time_since_sci", "sci_cause_type", "medstat")
 
-my_num_vars <- c("age_quest_admin", "time_since_sci")
+my_vars_all <- str_c("^", my_vars_all, collapse = "|")
+
+
+my_num_vars <- c("age", "time_since_sci")
+my_num_vars <- str_c("^", my_num_vars, collapse = "|")
 
 my_cat_vars <- c("sex", "sci_type", "sci_degree", "sci_cause_type")
+my_cat_vars <- str_c("^", my_cat_vars, collapse = "|")
 
 n_cols_ds <- 108
 
@@ -135,14 +145,16 @@ data_12_raw <- read_csv2(path_ds, col_types = str_c(rep("c", n_cols_ds), collaps
 
 data_12 <- data_12_raw %>% 
   rename_all(~str_remove(., "^ts1_")) %>% 
-  select(my_vars_all) %>% 
-  mutate_at(vars(my_num_vars), as.numeric)
+  select(matches(my_vars_all)) %>% 
+  mutate_at(vars(matches(my_num_vars)), as.numeric)
 
 
 # Recode and get cateogrical variables
 
+my_cat_vars <- str_split(my_cat_vars, "\\|") %>% pluck(1)
+
 df_cat_vars <- map_dfc(my_cat_vars, recode_variables, data = data_12, codebook = cb_12) %>% 
-  set_names(my_cat_vars) %>% 
+  set_names(str_remove(my_cat_vars, "\\^")) %>% 
   add_column(id_swisci = data_12$id_swisci, .before = 1)
 
 df_cat_vars <- mutate_all(df_cat_vars, str_to_lower)
@@ -150,7 +162,7 @@ df_cat_vars <- mutate_all(df_cat_vars, str_to_lower)
 
 # Get numeric variables
 
-df_num_vars <- select(data_12, id_swisci, my_num_vars)
+df_num_vars <- select(data_12, id_swisci, matches(my_num_vars))
 
 df_12 <- full_join(df_cat_vars, df_num_vars, by = "id_swisci") %>% 
   full_join(data_12[, c("id_swisci", "medstat")], by = "id_swisci") %>% 
@@ -160,7 +172,7 @@ rm("cb_12", "data_12", "data_12_raw", "df_cat_vars", "df_num_vars", "my_cat_vars
    "my_num_vars", "my_vars_all", "n_cols_ds", "path_ds")
 
 
-# Read and format 2012 data ---------------------------------------------------------------
+# Read and format data of SwiSCI pathway 2, survey 2017 ----------------------------
 
 
 # Preparations
@@ -170,37 +182,63 @@ path_ds <- "data/2019-C-006_2017__2019_10_23.csv"
 my_vars_all <- c("id_swisci", "sex", "age_quest", "sci_type", "sci_degree", 
                  "time_since_sci", "sci_cause_type", "medstat")
 
-my_num_vars <- c("age_quest", "time_since_sci")
+my_vars_all <- str_c("^", my_vars_all, collapse = "|")
+
+
+my_num_vars <- c("age", "time_since_sci")
+my_num_vars <- str_c("^", my_num_vars, collapse = "|")
 
 my_cat_vars <- c("sex", "sci_type", "sci_degree", "sci_cause_type")
+my_cat_vars <- str_c("^", my_cat_vars, collapse = "|")
 
 n_cols_ds <- 213
 
 data_17_raw <- read_csv2(path_ds, col_types = str_c(rep("c", n_cols_ds), collapse = "")) %>% 
   rename_all(~str_remove(., "^ts2_")) %>% 
-  select(my_vars_all) %>% 
-  mutate_at(vars(my_num_vars), as.numeric)
+  select(matches(my_vars_all)) %>% 
+  mutate_at(vars(matches(my_num_vars)), as.numeric)
 
-select(data_17_raw, ts2_hc_practitioner, ts2_hc_practitioner_1) %>% 
+
+# Manually choose variables
+
+data_17 <- select(data_17_raw, -id_swisci_1)
+
+
+# Switch to TRUE to show warnings and problems with the dataset
+
+if(FALSE) { 
+
+data_17_prob <- read_csv2(path_ds, col_types = str_c(rep("c", n_cols_ds), collapse = ""))
+
+problems(data_17_prob)
+
+warnings()
+
+data_17_prob %>% slice(473) %>% select(ts2_problem_other_1)
+
+select(data_17_prob, ts2_hc_practitioner, ts2_hc_practitioner_1) %>% 
   mutate(test_it = if_else(ts2_hc_practitioner == ts2_hc_practitioner_1, 0, 1)) %>% 
   filter(test_it == 1)
 
-data_17 <- select(data_17_raw, my_vars_all) %>% 
-  mutate_at(vars(my_num_vars), as.numeric)
+}
+ 
+  
 
 
 # Recode cateogrical variables
 
-df_cat_vars <- map_dfc(my_cat_vars, recode_variables, data = data_17, codebook = cb_17) %>% 
-  set_names(my_cat_vars) %>% 
-  add_column(id_swisci = data_17$id_swisci, .before = 1)
+my_cat_vars <- str_split(my_cat_vars, "\\|") %>% pluck(1)
 
-df_cat_vars <- mutate_all(df_cat_vars, str_to_lower)
+df_cat_vars <- map_dfc(my_cat_vars, recode_variables, data = data_17, codebook = cb_17) %>% 
+  set_names(str_remove(my_cat_vars, "\\^")) %>% 
+  add_column(id_swisci = data_17$id_swisci, .before = 1) %>% 
+  mutate_all(str_to_lower)
 
 
 # Get numeric variables
 
-df_num_vars <- data_17 %>% select(id_swisci, my_num_vars)
+df_num_vars <- select(data_17, id_swisci, matches(my_num_vars))
+
 
 
 # Join data and add additional variables
