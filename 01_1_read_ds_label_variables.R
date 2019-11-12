@@ -1,0 +1,254 @@
+
+library(tidyverse)
+library(readxl)
+
+fread <- data.table::fread
+
+
+# Make codebooks useable to label variables -------------------------------
+
+get_labels_from_codebook <- function(path_cb, my_sheet, my_col_types) {
+  
+  
+  cb <- read_xlsx(path_cb, sheet = my_sheet, col_types = my_col_types, skip = 1, 
+                  .name_repair = ~str_to_lower(str_replace_all(.x, " ", "_"))) %>% 
+    
+    mutate(codes_split =  str_split(codes, "\r\n")) %>% 
+    
+    unnest(codes_split) %>% 
+    
+    mutate(levels_labels_split = str_split(codes_split, "=")) %>% 
+    
+    mutate(var_level = map(levels_labels_split, 1),
+           var_label = map(levels_labels_split, 2)) %>%
+    
+    mutate_at(vars(var_level, var_label), as.character) %>% 
+    
+    mutate_at(vars(var_level, var_label), ~ if_else(. == "NULL", NA_character_, .)) %>% 
+    
+    select(-c(codes, codes_split, levels_labels_split))
+  
+  
+  if( any(names(cb) %in% "suffix") ) {
+    
+    mutate(cb, suffix = if_else(is.na(suffix), "", suffix),
+           var_name = str_c(variable_name, suffix)) %>% 
+      
+      select(var_name = variable_name, var_level, var_label)
+    
+    
+  } else {
+    
+    select(cb, var_name = variable_name, var_level, var_label)
+    
+  }
+  
+}
+
+
+# Get labels for codes from starter and basic module of 2012
+
+cb_st_ba_12 <- get_labels_from_codebook(
+  path_cb = "data/Pathway2_Codebook_Starter_Basic_2019_04_02.xlsx", 
+  my_sheet = "Starter-Basic", 
+  my_col_types = c("skip", rep("text", 8), "skip"))
+
+
+# Get labels for codes from health services research module of 2012
+
+cb_hsr_12 <- get_labels_from_codebook(
+  path_cb = "data/Pathway2_Codebook_HSR_2013_09_10.xlsx", 
+  my_sheet = "HSR", 
+  my_col_types = c("skip", rep("text", 8), "skip"))
+
+
+cb_12 <- bind_rows(cb_st_ba_12, cb_hsr_12)
+
+
+# Get labels for codes from 2017 codebook
+
+cb_17 <- get_labels_from_codebook(
+  path_cb = "data/Pathway2_2017_Codebook_2019_10_10.xlsx", 
+  my_sheet = "Questionnaires", 
+  my_col_types = c("skip", rep("text", 11)))
+
+
+# Clean workspace
+
+rm("cb_hsr_12", "cb_st_ba_12", "get_labels_from_codebook")
+
+
+
+
+# Read and format data ---------------------------------------------------------------
+
+# Function to load and label swisci data
+
+load_swisci_data <- function(path_ds, tp, all_vars, num_vars, cat_vars, codebook) {
+  
+  
+  # Read dataset, remove prefix (ts_), and change numeric variables to numeric
+  
+  my_file <- fread(path_ds, colClasses = 'character', data.table = FALSE) %>% 
+    rename_all(~str_remove(., str_c("^", tp, "_"))) %>% 
+    select(all_vars) %>% 
+    mutate_at(num_vars, as.numeric)
+  
+  
+  
+  recode_variables <- function(my_var_name, my_file, codebook) {
+    
+    
+    # Search all_vars variable in codebook 
+    
+    my_cb <- filter(codebook, var_name %in% my_var_name) %>% 
+      pivot_wider(names_from = var_name, values_from = var_level)
+    
+    
+    # Match coding, to find corresponing label in codebook
+    
+    var_coding_in_ds <- my_file[[my_var_name]]
+    var_coding_in_cb <- my_cb[[my_var_name]]
+    
+    matched <- match(var_coding_in_ds, var_coding_in_cb)
+    
+    
+    # Obtain labels
+    
+    map_chr(matched, function(x) my_cb$var_label[x])
+    
+  }
+  
+  
+  
+  # Loop function over my categorical variables to get those variables labelled
+  
+  ds_cat_vars <- map_dfc(cat_vars, recode_variables, my_file = my_file, codebook = codebook) %>% 
+    set_names(cat_vars) %>% 
+    add_column(id_swisci = my_file$id_swisci, .before = 1) %>% 
+    mutate_all(str_to_lower)
+  
+  
+  # Select numeric variables
+  
+  ds_num_vars <- select(my_file, id_swisci, one_of(num_vars))
+  
+  
+  # Merge categorical and numerical variables and add timepoint (ts1 = 2012 or ts2 = 2017) 
+  
+  full_join(ds_cat_vars, ds_num_vars, by = "id_swisci") %>% 
+    full_join(my_file[, c("id_swisci", "medstat")], by = "id_swisci") %>% 
+    mutate(tp = tp)
+  
+}
+
+# Load and relabel swisci data of 2012 ------------------------------------------------
+
+if(FALSE) {# Have a look at all variables
+
+all_vars <- fread(file.path("data", "2019-C-006_2012__2019_10_22.csv"), colClasses = 'character', data.table = FALSE) %>% 
+  as_tibble()
+
+all_vars %>% names()
+all_vars %>% select("ts1_income_household")
+
+}
+
+
+# Select the variables I want
+
+my_vars_all <- c("id_swisci", "sex", "age_quest_admin", "sci_type", "sci_degree", 
+                 "time_since_sci", "sci_cause_type", "medstat", "ef_finances",
+                 
+                 "hcu_practitioner_check", "hcu_practitioner_acute", "hcu_inpatient",
+                 "hcu_inpatient_num", "hcu_inpatient_days", "hcu_ambulant",
+                 "hcu_adm_unplanned", "hcu_adm_unplanned_num", "hcu_adm_planned",
+                 "hcu_adm_planned_num", "hcu_paraplegic_check", "hcu_paraplegic_acute"
+)
+
+my_cat_vars <- c("sex", "sci_type", "sci_degree", "sci_cause_type", "ef_finances", 
+                 "hcu_inpatient","hcu_ambulant", "hcu_adm_unplanned", "hcu_adm_planned")
+
+my_num_vars <- c("age_quest_admin", "time_since_sci", "hcu_practitioner_check", "hcu_practitioner_acute", 
+                 "hcu_inpatient_num", "hcu_inpatient_days", "hcu_adm_unplanned_num", "hcu_adm_planned_num",
+                 "hcu_paraplegic_check", "hcu_paraplegic_acute")
+
+identical(length(my_vars_all), length(c(my_num_vars, my_cat_vars, "id_swisci", "medstat")))
+
+
+# Label selected variables
+
+swisci_12 <- load_swisci_data(path_ds = file.path("data", "2019-C-006_2012__2019_10_22.csv"),
+                              tp = "ts1",
+                              all_vars = my_vars_all,
+                              num_vars = my_num_vars,
+                              cat_vars = my_cat_vars,
+                              codebook = cb_12)
+
+rm(cb_12, my_vars_all, my_num_vars, my_cat_vars)
+
+
+# Load and relabel swisci data of 2017 ------------------------------------------------
+
+
+if(FALSE) {# Have a look at all variables
+  
+  all_vars <- fread(file.path("data", "2019-C-006_2017__2019_10_23.csv"), colClasses = 'character', data.table = FALSE)
+  all_vars %>% names()
+  all_vars %>% select("ts2_income_household")
+  
+}
+
+
+my_vars_all <- c("id_swisci", "sex", "age_quest", "sci_type", "sci_degree", 
+                 "time_since_sci", "sci_cause_type", "medstat", "ef_finances", 
+                 "hc_practitioner", "hc_practitioner_num", 
+                 "hc_paraplegic", "hc_paraplegic_num",
+                 "hc_inpatient", "hc_inpatient_num", "hc_inpatient_days",
+                 
+                 "hc_ambulant", "hc_ambulant_unplanned", "hc_ambulant_unplanned_num",
+                 "hc_ambulant_planned", "hc_ambulant_planned_num", 
+                 "hc_paracenter",
+                 "hc_paracenter_1_check", "hc_paracenter_2_check", "hc_paracenter_3_check",
+                 "hc_paracenter_4_check", "hc_paracenter_5_check", "hc_paracenter_6_check",
+                 "hc_paracenter_1_ambulant", "hc_paracenter_2_ambulant", "hc_paracenter_3_ambulant",
+                 "hc_paracenter_4_ambulant", "hc_paracenter_5_ambulant","hc_paracenter_6_ambulant",
+                 "hc_paracenter_1_inpat", "hc_paracenter_2_inpat", "hc_paracenter_3_inpat",
+                 "hc_paracenter_4_inpat", "hc_paracenter_5_inpat", "hc_paracenter_6_inpat")
+
+my_cat_vars <- c("sex", "sci_type", "sci_degree", "sci_cause_type", "ef_finances",
+                 "hc_practitioner", "hc_paraplegic", "hc_inpatient","hc_ambulant", 
+                 "hc_ambulant_unplanned", "hc_ambulant_planned",
+                 "hc_paracenter",
+                 "hc_paracenter_1_check", "hc_paracenter_2_check", "hc_paracenter_3_check",
+                 "hc_paracenter_4_check", "hc_paracenter_5_check", "hc_paracenter_6_check",
+                 "hc_paracenter_1_ambulant", "hc_paracenter_2_ambulant", "hc_paracenter_3_ambulant",
+                 "hc_paracenter_4_ambulant", "hc_paracenter_5_ambulant","hc_paracenter_6_ambulant",
+                 "hc_paracenter_1_inpat", "hc_paracenter_2_inpat", "hc_paracenter_3_inpat",
+                 "hc_paracenter_4_inpat", "hc_paracenter_5_inpat", "hc_paracenter_6_inpat")
+
+my_num_vars <- c("age_quest", "time_since_sci", 
+                 "hc_practitioner_num", "hc_paraplegic_num", 
+                 "hc_inpatient_num",
+                 "hc_inpatient_days", "hc_ambulant_unplanned_num",
+                 "hc_ambulant_planned_num")
+
+identical(length(my_vars_all), length(c(my_num_vars, my_cat_vars, "id_swisci", "medstat")))
+
+
+
+swisci_17 <- load_swisci_data(path_ds = file.path("data", "2019-C-006_2017__2019_10_23.csv"),
+                              tp = "ts2",
+                              all_vars = my_vars_all,
+                              num_vars = my_num_vars,
+                              cat_vars = my_cat_vars,
+                              codebook = cb_17)
+
+
+# Save datasets and clear workspace
+
+save(swisci_12, file = file.path("workspace", "swisci_12_raw.RData"))
+save(swisci_17, file = file.path("workspace", "swisci_17_raw.RData"))
+
+rm("cb_17", "fread", "load_swisci_data", "my_cat_vars", "my_num_vars", 
+  "my_vars_all", "swisci_12", "swisci_17")
