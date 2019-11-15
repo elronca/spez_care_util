@@ -115,42 +115,12 @@ sci <- mutate(sci,
 
 
 sci <- sci %>% 
-  mutate_all(~if_else(. %in% "yes", "1", as.character(.))) %>% 
-  mutate_all(~if_else(. %in% "no", "0", as.character(.))) %>% 
+  mutate_if(is.character, ~if_else(. %in% "yes", "1", .)) %>% 
+  mutate_if(is.character, ~if_else(. %in% "no", "0", .)) %>% 
   mutate_at(vars(starts_with("hc_paracenter")), ~if_else(is.na(.), "0", .)) %>% 
-  mutate_at(vars(starts_with("hc_paracenter")), as.numeric)
-
-# Clean inpatient stays
-
-sci <- sci %>%
-  mutate_at(vars(starts_with("hc_inpatient")), as.integer) %>% 
-  mutate_at(vars(hc_inpatient_num, hc_inpatient_days), ~if_else(hc_inpatient %in% 0L, 0L, as.integer(.)))
-
-cat("There are some cases where participants mentioned inpatient days but not stays")
+  mutate_at(vars(starts_with("hc_paracenter")), as.integer)
 
 
-# Clean outpatient stays
-
-sci <- sci %>%
-  mutate_at(vars(starts_with("hc_ambulant")), ~if_else(. == "unknown", NA_character_, .)) %>% 
-  mutate_at(vars(starts_with("hc_ambulant")), as.integer) %>% 
-  mutate_at(vars(hc_ambulant_unplanned, hc_ambulant_planned, hc_ambulant_unplanned_num, hc_ambulant_planned_num), ~if_else(hc_ambulant %in% 0L, 0L, as.integer(.))) %>% 
-  mutate(
-    hc_ambulant_unplanned = if_else(hc_ambulant_unplanned_num > 0, 1L, as.integer(hc_ambulant_unplanned)),
-    hc_ambulant_planned = if_else(hc_ambulant_planned_num > 0, 1L, as.integer(hc_ambulant_planned)))
-
-
-# Visits to specialist clinics
-
-sci <- sci %>% 
-  mutate_at(vars(starts_with("hc_paracenter")), as.integer) %>%
-  mutate_at(vars(starts_with("hc_paracenter"), -hc_paracenter), ~if_else(hc_paracenter %in% 0L, 0L, as.integer(.))) %>% 
-  rename_at(vars(starts_with("hc_paracenter"), -hc_paracenter), ~str_replace_all(., c("1" = "Balgrist",
-                                                                                      "2" = "RehaB",
-                                                                                      "3" = "CRR",
-                                                                                      "4" = "SPZ",
-                                                                                      "5" = "Plein_Soleil",
-                                                                                      "6" = "Bellinzona")))
 
 # Rename variables
 
@@ -186,8 +156,6 @@ sci <- sci %>%
 # Save data and clear workspace -------------------------------------------
 
 save(sci, file = file.path("workspace", "raw_data.Rdata"))
-
-setdiff(names(swisci_17), names(sci))
 
 rm("extra_col_names", "extra_cols", "ids_hcu", "n_cols", "n_rows", 
    "sci", "swisci_12", "swisci_17", "to_factor")
