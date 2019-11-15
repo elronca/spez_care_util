@@ -16,7 +16,7 @@ get_bt_discrete_vars <- function(df, my_tp = "ts1", vars_to_remove =  "tp", vars
   year <- if_else(my_tp == "ts1", 2012, 2017)
   
   
-  # Calculate total numbers by group
+  # Calculate total numbers of categories by variable
   
   raw_table <- df %>% 
     
