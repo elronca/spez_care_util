@@ -5,6 +5,11 @@ Sys.setenv(LANGUAGE = 'en')
 
 load(file.path("workspace", "manually_imputed.Rdata"))
 
+sci %>% 
+  filter(tp == "ts1") %>% 
+  filter(module_hcu_12 == 1) %>% 
+  nrow()
+
 
 # Calculate relative frequencies of categories across discrete variables ---------------------------------------
 
@@ -101,10 +106,10 @@ get_bt_continous_vars <- function(df, n_digits = 0, my_tp = "ts1", my_vars = "ag
     .module_hcu_12 = TRUE
     }
 
-  if (.module_hcu_12) {df <- df %>% filter(module_hcu_12 %in% 1)}
-  
-  
   year <- if_else(my_tp == "ts1", 2012, 2017)
+  df <- filter(df, tp == my_tp)
+  
+  if (.module_hcu_12) {df <- df %>% filter(module_hcu_12 %in% 1)}
   
   
   if(get_iqr) {
@@ -112,8 +117,6 @@ get_bt_continous_vars <- function(df, n_digits = 0, my_tp = "ts1", my_vars = "ag
     res <- df %>% 
       
       select(tp, !!!syms(my_vars)) %>% 
-      
-      filter(tp == my_tp) %>% 
       
       select_if(is.numeric) %>% 
       
@@ -138,6 +141,7 @@ get_bt_continous_vars <- function(df, n_digits = 0, my_tp = "ts1", my_vars = "ag
     my_tp = "ts1"
     n_digits = 0
     my_vars = c("hc_inpatient", "hc_ambulant")
+    .module_hcu_12 = TRUE
   }
   
   
@@ -147,8 +151,6 @@ get_bt_continous_vars <- function(df, n_digits = 0, my_tp = "ts1", my_vars = "ag
     res <- df %>% 
       
       select(tp, !!!syms(my_vars)) %>% 
-      
-      filter(tp == my_tp) %>% 
       
       select_if(is.numeric) %>% 
       
