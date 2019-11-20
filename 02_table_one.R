@@ -82,11 +82,14 @@ table_2017 <- get_bt_discrete_vars(sci, my_tp = "ts2", vars_to_remove_missings =
 table_discrete_vars <- full_join(table_2012, table_2017, by = c("variable", "category")) %>% 
   mutate(variable = replace(variable, duplicated(variable), ""))
 
+rm(table_2012, table_2017)
+
 
 
 # Summarize continuous variables ------------------------------------------------------------------------------------
 
-get_bt_continous_vars <- function(df, n_digits = 0, my_tp = "ts1", my_vars = "age", get_iqr = TRUE, get_prop = FALSE) {
+get_bt_continous_vars <- function(df, n_digits = 0, my_tp = "ts1", my_vars = "age", 
+                                  get_iqr = TRUE, get_prop = FALSE, .module_hcu_12 = FALSE) {
   
   if(sum(get_iqr, get_prop) != 1) stop("Either get_iqr or get_prop has to be true; both cannot")
   
@@ -95,7 +98,10 @@ get_bt_continous_vars <- function(df, n_digits = 0, my_tp = "ts1", my_vars = "ag
     my_tp = "ts1"
     n_digits = 0
     my_vars = c("hc_inpatient", "hc_ambulant")
-  }
+    .module_hcu_12 = TRUE
+    }
+
+  if (.module_hcu_12) {df <- df %>% filter(module_hcu_12 %in% 1)}
   
   
   year <- if_else(my_tp == "ts1", 2012, 2017)
@@ -127,6 +133,13 @@ get_bt_continous_vars <- function(df, n_digits = 0, my_tp = "ts1", my_vars = "ag
     
   }
   
+  if(FALSE) {
+    df <- sci
+    my_tp = "ts1"
+    n_digits = 0
+    my_vars = c("hc_inpatient", "hc_ambulant")
+  }
+  
   
   
   if(get_prop) {
@@ -149,10 +162,12 @@ get_bt_continous_vars <- function(df, n_digits = 0, my_tp = "ts1", my_vars = "ag
       
       mutate(n_rel_freq = str_c(sum, " (", formatC(mean, format = "f", digits = n_digits), ")")) %>% 
       
-      select(-sum, -mean)
+      select(-sum, -mean) %>% 
+      
+      add_row(variable = "n_tot", n_rel_freq = str_c(nrow(df), " (100)"), .before = 1)
     
     names(res)[names(res) == "n_rel_freq"] <- str_c("n_rel_freq", year, sep = "_")
-    
+      
     return(res)
     
   }
@@ -163,6 +178,8 @@ cont_vars_2012 <- get_bt_continous_vars(sci, my_vars = c("age", "time_since_sci"
 cont_vars_2017 <- get_bt_continous_vars(sci, my_vars = c("age", "time_since_sci"), my_tp = "ts2")
 
 table_continous_vars <- full_join(cont_vars_2012, cont_vars_2017, by = c("variable"))
+
+rm(cont_vars_2012, cont_vars_2017)
 
 table_discrete_vars
 table_continous_vars
@@ -181,11 +198,11 @@ hc_vars <- select(sci, starts_with("hc_")) %>% names() %>% {
 }
 
 
-# Select categorical variables
+# Select categorical healthcare utilizaiton variables
 
 hc_vars_cat <- str_subset(hc_vars, "_num", negate = TRUE)
 
-hc_2012 <- get_bt_continous_vars(sci, my_vars = hc_vars_cat, get_iqr = FALSE, get_prop = TRUE)
+hc_2012 <- get_bt_continous_vars(sci, my_vars = hc_vars_cat, get_iqr = FALSE, get_prop = TRUE, .module_hcu_12 = TRUE)
 hc_2017 <- get_bt_continous_vars(sci, my_vars = hc_vars_cat, get_iqr = FALSE, get_prop = TRUE, my_tp = "ts2")
 
 table_hc_vars <- full_join(hc_2012, hc_2017, by = c("variable")) %>% 
