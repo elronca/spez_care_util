@@ -117,9 +117,10 @@ sci <- mutate(sci,
 sci <- sci %>% 
   mutate_if(is.character, ~if_else(. %in% "yes", "1", .)) %>% 
   mutate_if(is.character, ~if_else(. %in% "no", "0", .)) %>% 
-  mutate_at(vars(starts_with("hc_paracenter")), ~if_else(is.na(.), "0", .)) %>% 
-  mutate_at(vars(starts_with("hc_paracenter")), as.integer)
-
+  mutate_at(vars(starts_with("hc_paracenter")), ~if_else(is.na(.), 0L, as.integer(.))) %>% 
+  mutate_at(vars(starts_with("hc_paraplegic")), ~if_else(is.na(.), 0L, as.integer(.))) %>% 
+  mutate_at(vars(starts_with("hc_practitioner")), ~if_else(is.na(.), 0L, as.integer(.)))
+  
 
 
 # Rename variables
