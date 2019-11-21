@@ -486,3 +486,43 @@ write.csv2(paracenter_rf, file.path("output", "paracenter_rf.csv"), row.names = 
 
 
 
+## Persons who had an inpatient stay
+
+inpatient_17 <- sci %>% 
+  filter(tp == "ts2") %>% 
+  filter(hc_inpatient == 1)
+
+inp_vars <- inpatient_17 %>% names() %>% str_subset("hc_para") %>% str_subset("_inp")
+amb_vars <- inpatient_17 %>% names() %>% str_subset("hc_para") %>% str_subset("_ambulant")
+
+inpatient_17 <- inpatient_17 %>% 
+  mutate(spec_care_inp = hc_paracenter_Balgrist_inpat +  hc_paracenter_RehaB_inpat +
+                         hc_paracenter_CRR_inpat + hc_paracenter_SPZ_inpat +
+                         hc_paracenter_Plein_Soleil_inpat + hc_paracenter_Bellinzona_inpat) %>% 
+  
+  mutate(spec_care_inp = if_else(spec_care_inp >= 1L, 1, 0))
+  
+                       # inpatient_17 = if_else(inpatient_17 >= 1L, 1, 0))
+                       
+sum(inpatient_17$spec_care_inp)
+
+
+
+ambulant_17 <- sci %>% 
+  filter(tp == "ts2") %>% 
+  filter(hc_ambulant == 1)
+
+amb_vars <- ambulant_17 %>% names() %>% str_subset("hc_para") %>% str_subset("_ambulant")
+
+ambulant_17 <- ambulant_17 %>% 
+  mutate(spec_care_amb = hc_paracenter_Balgrist_ambulant +  hc_paracenter_RehaB_ambulant +
+           hc_paracenter_CRR_ambulant + hc_paracenter_SPZ_ambulant +
+           hc_paracenter_Plein_Soleil_ambulant + hc_paracenter_Bellinzona_ambulant) %>% 
+  
+  mutate(spec_care_amb = if_else(spec_care_amb >= 1L, 1, 0))
+
+# inpatient_17 = if_else(inpatient_17 >= 1L, 1, 0))
+
+sum(ambulant_17$spec_care_amb)
+
+
