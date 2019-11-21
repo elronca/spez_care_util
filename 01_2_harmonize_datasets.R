@@ -125,8 +125,7 @@ sci <- sci %>%
 sci <- sci %>% 
   mutate_at(vars(starts_with("hc_ambulant")), as.character) %>% 
   mutate_at(vars(starts_with("hc_ambulant")), ~if_else(. == "unknown", NA_character_, .)) %>% 
-  mutate_at(vars(starts_with("hc_ambulant")), as.integer) %>% 
-  select(starts_with("hc_ambulant"))
+  mutate_at(vars(starts_with("hc_ambulant")), as.integer)
 
 
 # Rename variables
