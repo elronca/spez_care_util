@@ -120,7 +120,6 @@ sci <- sci %>%
   mutate_at(vars(starts_with("hc_paracenter")), ~if_else(is.na(.), 0L, as.integer(.))) %>% 
   mutate_at(vars(starts_with("hc_paraplegic")), ~if_else(is.na(.), 0L, as.integer(.))) %>% 
   mutate_at(vars(starts_with("hc_practitioner")), ~if_else(is.na(.), 0L, as.integer(.)))
-  
 
 
 # Rename variables
