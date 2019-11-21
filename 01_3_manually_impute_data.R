@@ -11,7 +11,6 @@ load(file.path("workspace", "raw_data.Rdata"))
 # Clean inpatient stays
 
 sci <- sci %>%
-  mutate_at(vars(starts_with("hc_inpatient")), as.integer) %>% 
   mutate_at(vars(hc_inpatient_num, hc_inpatient_days), ~if_else(hc_inpatient %in% 0L, 0L, .))
 
 cat("There are some cases where participants mentioned inpatient days but not stays")
@@ -20,19 +19,13 @@ cat("There are some cases where participants mentioned inpatient days but not st
 # Clean outpatient stays
 
 sci <- sci %>%
-  mutate_at(vars(starts_with("hc_ambulant"), -ends_with("_num")), ~if_else(. == "unknown", NA_character_, .)) %>% 
-  mutate_at(vars(starts_with("hc_ambulant")), as.integer) %>% 
-  mutate_at(vars(starts_with("hc_ambulant")), ~if_else(hc_ambulant %in% 0L, 0L, .)) %>% 
-  
-  mutate(hc_ambulant_unplanned = if_else(hc_ambulant_unplanned_num > 0, 1L, as.integer(hc_ambulant_unplanned)),
-         hc_ambulant_planned = if_else(hc_ambulant_planned_num > 0, 1L, as.integer(hc_ambulant_planned)))
+  mutate(hc_ambulant_unplanned = if_else(hc_ambulant_unplanned_num > 0L, 1L, as.integer(hc_ambulant_unplanned)),
+         hc_ambulant_planned = if_else(hc_ambulant_planned_num > 0L, 1L, as.integer(hc_ambulant_planned)))
 
 
 # Visits to specialist clinics
 
-sci <- sci %>% 
-  mutate_at(vars(starts_with("hc_paracenter")), as.integer) %>%
-  mutate_at(vars(starts_with("hc_paracenter"), -hc_paracenter), ~if_else(hc_paracenter %in% 0L, 0L, .)) %>% 
+hc_paracenter <- sci %>% 
   rename_at(vars(starts_with("hc_paracenter"), -hc_paracenter), ~str_replace_all(., c("1" = "Balgrist",
                                                                                       "2" = "RehaB",
                                                                                       "3" = "CRR",
@@ -102,6 +95,13 @@ rm(imputed_vars, imp_locbf)
 # Repair time since SCI variable
 
 sci %>% 
+  filter(module_hcu_12 == 1) %>% 
+  group_by(tp) %>% 
+  summarize(n = n(),
+            mean_tsci_months = mean(time_since_sci, na.rm = TRUE),
+            mean_tsci_years = mean(time_since_sci/12, na.rm = TRUE))
+
+sci %>% 
   add_count(id_swisci) %>% 
   group_by(id_swisci) %>% 
   mutate(n_miss_tsci = n_miss(time_since_sci)) %>% 
@@ -115,37 +115,6 @@ sci <- sci %>%  mutate(
 
 sci %>% filter(id_swisci %in% c("143607", "509102")) %>% 
   select(id_swisci, tp, time_since_sci)
-
-
-# Identify strange time since sci variables
-
-month_tsci_btwn_surveys <- sci %>% 
-  add_count(id_swisci) %>% 
-  group_by(id_swisci) %>% 
-  mutate(diff_tsci = time_since_sci - lag(time_since_sci)) %>% 
-  select(id_swisci, tp, time_since_sci, diff_tsci, n) %>% 
-  filter(n == 2) %>% 
-  summarize(avg_tsci_diff = sum(diff_tsci, na.rm = TRUE)) 
-
-month_tsci_btwn_surveys %>% pull() %>% summary()
-
-strangies_ids <- month_tsci_btwn_surveys %>% 
-  filter(avg_tsci_diff > 80 | avg_tsci_diff < 48) %>% 
-  pull(id_swisci)
-
-strangies_df <- filter(sci, id_swisci %in% strangies_ids) %>% 
-  select(id_swisci:time_since_sci) %>% 
-  group_by(id_swisci) %>% 
-  mutate(diff_tsci = time_since_sci - lag(time_since_sci)) %>% 
-  mutate(diff_age = age - lag(age),
-         diff_age = diff_age *12) %>% 
-  filter(sum(is.na(diff_tsci)) < 2) %>% 
-  mutate(diff_tsci = replace_na(diff_tsci, ""),
-         diff_age = replace_na(diff_tsci, ""))
-
-write.csv2(strangies_df, file.path("output", "strange_times_since_sci.csv"), row.names = FALSE)
-
-rm(month_tsci_btwn_surveys, strangies_ids, strangies_df)
 
 
 # Remove case where we have no data
