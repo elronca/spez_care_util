@@ -7,25 +7,17 @@ library(naniar)
 load(file.path("workspace", "raw_data.Rdata"))
 
 
+# This person mentioned inpatient days but the number is 0, we recode it as being 1
 
-# Clean inpatient stays
+sci %>% filter(hc_inpatient_days > 0 & hc_inpatient_num == 0) %>% 
+  select(id_swisci, tp, starts_with("hc_inpatient"))
 
-sci <- sci %>%
-  mutate_at(vars(hc_inpatient_num, hc_inpatient_days), ~if_else(hc_inpatient %in% 0L, 0L, .))
-
-cat("There are some cases where participants mentioned inpatient days but not stays")
-
-
-# Clean outpatient stays
-
-sci <- sci %>%
-  mutate(hc_ambulant_unplanned = if_else(hc_ambulant_unplanned_num > 0L, 1L, as.integer(hc_ambulant_unplanned)),
-         hc_ambulant_planned = if_else(hc_ambulant_planned_num > 0L, 1L, as.integer(hc_ambulant_planned)))
+sci <- mutate(sci, hc_inpatient_num = if_else(id_swisci == "507163" & tp == "ts1", 1L, hc_inpatient_num))
 
 
 # Visits to specialist clinics
 
-hc_paracenter <- sci %>% 
+sci <- sci %>% 
   rename_at(vars(starts_with("hc_paracenter"), -hc_paracenter), ~str_replace_all(., c("1" = "Balgrist",
                                                                                       "2" = "RehaB",
                                                                                       "3" = "CRR",
@@ -108,7 +100,7 @@ sci %>%
   filter(n == 2 & n_miss_tsci == 1) %>% 
   select(id_swisci, tp, time_since_sci)
 
-sci <- sci %>%  mutate(
+sci <- sci %>% mutate(
   time_since_sci = if_else(id_swisci == "143607" & tp == "ts1", 410 - 60, time_since_sci),
   time_since_sci = if_else(id_swisci == "509102" & tp == "ts2", 231 + 60, time_since_sci)
 )

@@ -3,7 +3,7 @@
 # Harmonize data of 2012 and 2017
 
 library(tidyverse)
-Sys.setenv(LANGUAGE='en')
+Sys.setenv(LANGUAGE = 'en')
 
 load(file.path("workspace", "swisci_12_raw.RData"))
 load(file.path("workspace", "swisci_17_raw.RData"))
@@ -36,39 +36,12 @@ swisci_12 <- rename(swisci_12, age = age_quest_admin)
 swisci_17 <- rename(swisci_17, age = age_quest)
 
 
+# Healthcare utilization
 
-# Prepare hcu variables -------------------------------------------------
+swisci_12 <- swisci_12 %>%  
+  rename_all(~str_replace_all(., "^hcu_", "hc_")) %>% 
+  rename_all(~str_replace_all(., "_adm_", "_ambulant_"))
 
-names(swisci_12) <- str_replace_all(names(swisci_12), "^hcu_", "hc_")
-
-names(swisci_12) <- str_replace_all(names(swisci_12), c(
-  "hc_adm_planned" = "hc_ambulant_planned",
-  "hc_adm_unplanned" = "hc_ambulant_unplanned",
-  "hc_adm_planned_num" = "hc_ambulant_planned_num",
-  "hc_adm_unplanned_num" = "hc_ambulant_unplanned_num"))
-
-intersect(names(swisci_12), names(swisci_17))
-
-
-swisci_12 <- swisci_12 %>% 
-  mutate_at(vars("hc_practitioner_check", "hc_practitioner_acute"), ~if_else(. %in% c(777, 888, 99, 999), NA_real_, .)) %>% 
-  mutate_at(vars("hc_paraplegic_check", "hc_paraplegic_acute"), ~if_else(. %in% c(777, 888, 99, 999), NA_real_, .)) %>% 
-  
-  mutate(
-    hc_practitioner_num = rowSums(select(., "hc_practitioner_check", "hc_practitioner_acute"), na.rm = TRUE),
-    hc_practitioner_num = if_else(is.na(hc_practitioner_check) & is.na(hc_practitioner_acute), NA_real_, hc_practitioner_num),
-    hc_practitioner = if_else(hc_practitioner_num > 0, "yes", NA_character_)) %>% 
-  
-  mutate(
-    hc_paraplegic_num = rowSums(select(., "hc_paraplegic_check", "hc_paraplegic_acute"), na.rm = TRUE),
-    hc_paraplegic_num = if_else(is.na(hc_paraplegic_check) & is.na(hc_paraplegic_acute), NA_real_, hc_paraplegic_num),
-    hc_paraplegic = if_else(hc_paraplegic_num > 0, "yes", NA_character_)) %>% 
-  
-  select(-hc_practitioner_check, -hc_practitioner_acute, -hc_paraplegic_check, -hc_paraplegic_acute)
-
-
-setdiff(names(swisci_12), intersect(names(swisci_12), names(swisci_17)))
-setdiff(names(swisci_17), intersect(names(swisci_12), names(swisci_17)))
 
 
 ## Add missing variables of 2017 in 2012 to dataset of 2012 so that bind_rows will be possible
@@ -87,23 +60,20 @@ extra_cols <- matrix(data = NA_character_, nrow = n_rows, ncol = n_cols,
 
 swisci_12 <- bind_cols(swisci_12, extra_cols)
 
+
+
+# Join datasets -----------------------------------------------------------
+
 sci <- bind_rows(swisci_12, swisci_17) %>% 
   arrange(as.numeric(id_swisci), tp)
 
-
-# Reorder variables
-
-sci <- bind_rows(swisci_12, swisci_17) %>% arrange(as.numeric(id_swisci), tp)
+rm(swisci_12, swisci_17, extra_cols, extra_col_names, n_cols, n_rows)
 
 
-# Check factor levels
-
-select_if(sci, is.character) %>% 
-  select(-c(id_swisci, medstat)) %>% 
-  map(unique)
 
 
-# Repair identical categories with different names
+
+# Repair identical categories with different names ------------------------
 
 sci <- mutate(sci, 
               sci_degree = str_remove(sci_degree, " lesion"),
@@ -114,18 +84,130 @@ sci <- mutate(sci,
                 "made my life a lot harder" = "made my life a lot more difficult")))
 
 
-sci <- sci %>% 
-  mutate_if(is.character, ~if_else(. %in% "yes", "1", .)) %>% 
-  mutate_if(is.character, ~if_else(. %in% "no", "0", .)) %>% 
-  mutate_at(vars(starts_with("hc_paracenter")), ~if_else(is.na(.), 0L, as.integer(.))) %>% 
-  mutate_at(vars(starts_with("hc_paraplegic")), ~if_else(is.na(.), 0L, as.integer(.))) %>% 
-  mutate_at(vars(starts_with("hc_practitioner")), ~if_else(is.na(.), 0L, as.integer(.))) %>% 
-  mutate_at(vars(starts_with("hc_inpatient")), as.integer)
+# There are still different variables
+
+if(F) {
+  n_miss_vars <- sci %>% 
+  group_by(tp) %>% 
+  select(tp, starts_with("hc_")) %>% 
+  summarize_all(~sum(is.na(.))) %>% 
+  pivot_longer(cols = starts_with("hc_"), names_to = "hcu_type", values_to = "n_missings") %>% 
+  pivot_wider(names_from = tp, values_from = n_missings) %>% 
+  mutate(ts1_prop = round(ts1 / 1550 * 100, 0),
+         ts2_prop = round(ts2 / 1550 * 100, 0))
+  
+  n_miss_vars %>% filter(ts1_prop >= 99) %>% pull(hcu_type)
+}
+
+
+# Relevel numeric variables -------------------------------------------------------
+
+
+
+# Medizinische Versorgung - Inanspruchnahme 2012 --------------------------
+
+calc_row_sum <- function(df, sum_var_1, sum_var_2, res_sum_vars, res_sum_vars_dic) {
+  
+  # sum_var_1: 1st variable that will be summed up
+  # sum_var_2: 2nd variable that will be summed up
+  # res_sum_vars: sum of sum_var_1, sum_var_2
+  # res_sum_vars_dic: dichotomized res_sum_vars -> 0 if 0 or NA, 1 otherwise
+  
+  ## Attention: NA -> 0 also if there are only NAs. The reason is that if somebody did not tick a box,
+  ## We expect, that they didn't visit that health provider even if they were asked to enter a 0 if
+  ## they've never visited a health care provider
+  
+  # 777 = Not applicable
+  # 888 = Not interpretable answer
+  # 999 = Unknown
+  
+  all_vars <- c(sum_var_1, sum_var_2, res_sum_vars, res_sum_vars_dic)
+  
+  df %>% 
+    mutate_at(vars(!!!syms(all_vars)), as.integer) %>% 
+    mutate_at(vars(!!!syms(all_vars)), ~if_else(. %in% c(777, 888, 999), NA_integer_, .)) %>%
+    
+    mutate(my_sum = select(., c(sum_var_1, sum_var_2)) %>% rowSums(na.rm = TRUE),
+           my_sum = as.integer(my_sum)) %>%
+    
+    mutate(!!res_sum_vars := if_else(!is.na(!!sym(res_sum_vars)), !!sym(res_sum_vars), my_sum)) %>%
+    
+    mutate(!!res_sum_vars_dic := if_else(!!sym(res_sum_vars) > 0 | !!sym(res_sum_vars_dic) > 0, 1L, 0L),
+           !!res_sum_vars_dic := replace_na(!!sym(res_sum_vars_dic), 0L)) %>% 
+    
+    select(-c(my_sum, sum_var_1, sum_var_2))
+  
+}
+
+if(F) sci %>% select(tp, starts_with("hc_paraplegic")) %>% group_by(tp) %>% summarize_all(~sum(is.na(.)))
+
+
+sci <- calc_row_sum(sci, "hc_practitioner_check", "hc_practitioner_acute", "hc_practitioner_num", "hc_practitioner")
+
+sci <- calc_row_sum(sci, "hc_paraplegic_check", "hc_paraplegic_acute", "hc_paraplegic_num", "hc_paraplegic")
+
+
+# Recode inpatient hospitalizations ---------------------------------------
 
 sci <- sci %>% 
-  mutate_at(vars(starts_with("hc_ambulant")), as.character) %>% 
-  mutate_at(vars(starts_with("hc_ambulant")), ~if_else(. == "unknown", NA_character_, .)) %>% 
-  mutate_at(vars(starts_with("hc_ambulant")), as.integer)
+  mutate_at(vars(starts_with("hc_inpatient")), ~if_else(. %in% c("777", "888", "999", "unknown"), NA_character_, .)) %>% 
+  mutate_at(vars(starts_with("hc_inpatient")), ~as.integer(.)) %>% 
+  
+  # If we have a NA in nc_inpatient but not in hc_inpatient_num/days and also there are no zeros indicated in these variables, 
+  # then we recode this variable to be 1
+  
+  mutate(hc_inpatient = if_else(is.na(hc_inpatient) & all(is.na(na_if(select(., hc_inpatient_num, hc_inpatient_days), 0))), 1L, hc_inpatient)) %>% 
+
+  # If all records are NA then we guess that the respondent have never been to the hospital
+  mutate_at(vars(starts_with("hc_inpatient")), ~if_else(is.na(hc_inpatient) & is.na(hc_inpatient_num) & is.na(hc_inpatient_days), 0L, .)) %>% 
+  
+  # We recode the number of inpatient visits and stays as 0 if there hasn't been indicated that there were any visits at all
+  mutate_at(vars(hc_inpatient_num, hc_inpatient_days), ~if_else(hc_inpatient %in% 0L, 0L, .))
+
+
+# Recode outpatient hospitalizations --------------------------------------
+
+sci %>% select(starts_with("hc_ambulant"))
+
+sci <- sci %>% 
+  mutate_at(vars(starts_with("hc_ambulant")), ~if_else(. %in% c("777", "888", "999", "unknown"), NA_character_, .)) %>% 
+  mutate_at(vars(starts_with("hc_ambulant")), ~as.integer(.)) %>% 
+  
+  mutate(
+    hc_ambulant_planned = if_else(hc_ambulant_planned_num > 0L & !is.na(hc_ambulant_planned_num), 1L, hc_ambulant_planned),
+    hc_ambulant_unplanned = if_else(hc_ambulant_unplanned_num > 0L & !is.na(hc_ambulant_unplanned_num), 1L, hc_ambulant_unplanned)) %>% 
+  
+  # If all specific ambulant specific variables variables are NA and if the hc_ambulant is not 1 then hc_ambulant becomes 0 
+  mutate(hc_ambulant = if_else(pmap_lgl(select(., starts_with("hc_ambulant_")), ~all(is.na(c(...)))) & !hc_ambulant %in% 1L, 0L, hc_ambulant)) %>% 
+  
+  # If any of the specific ambulant variables are larger than one then hc_ambulant becomes 1
+  mutate(hc_ambulant = if_else(pmap_lgl(select(., starts_with("hc_ambulant_")), ~any(c(...) > 0)) & is.na(hc_ambulant), 1L, hc_ambulant)) %>% 
+  
+  # If any of the specific ambulant variables are either NA or 0 and hc_ambulant is NA it becomes 0
+  mutate(hc_ambulant = if_else(pmap_lgl(select(., starts_with("hc_ambulant_")), ~all(is.na(na_if(c(...), 0)))) & is.na(hc_ambulant), 0L, hc_ambulant)) %>% 
+  
+  # If somebody indicated not to have utilized any ambulant services then all specific ambulant services will be coded as 0
+  mutate_at(vars(starts_with("hc_ambulant_")), ~if_else(hc_ambulant %in% 0L, 0L, .))
+
+
+
+# Recode paracenter utilization -------------------------------------------
+
+sci <- sci %>% 
+  mutate_at(vars(starts_with("hc_paracenter")), ~if_else(. %in% c("777", "888", "999", "unknown"), NA_character_, .)) %>% 
+  mutate_at(vars(starts_with("hc_paracenter")), ~as.integer(.)) %>% 
+  
+  # If all specific paracenter variables are NA and if the hc_paracenter is not 1 then hc_paracenter becomes 0 
+  mutate(hc_paracenter = if_else(pmap_lgl(select(., starts_with("hc_paracenter_")), ~all(is.na(c(...)))) & !hc_paracenter %in% 1L, 0L, hc_paracenter)) %>% 
+  
+  # If any of the specific paracenter variables are larger than one then hc_paracenter becomes 1
+  mutate(hc_paracenter = if_else(pmap_lgl(select(., starts_with("hc_paracenter_")), ~any(c(...) > 0)) & is.na(hc_paracenter), 1L, hc_paracenter)) %>% 
+  
+  # If any of the specific paracenter variables are either NA or 0 and hc_paracenter is NA it becomes 0
+  mutate(hc_paracenter = if_else(pmap_lgl(select(., starts_with("hc_paracenter_")), ~all(is.na(na_if(c(...), 0)))) & is.na(hc_paracenter), 0L, hc_paracenter)) %>% 
+  
+  # If somebody indicated not to have utilized any paracenter services then all specific paracenter services will be coded as 0
+  mutate_at(vars(starts_with("hc_paracenter_")), ~if_else(hc_paracenter %in% 0L, 0L, .))
 
 
 # Rename variables
@@ -159,9 +241,15 @@ sci <- sci %>%
   arrange(tp, as.numeric(id_swisci))
 
 
+
+
+# Make numeric variables numeric ------------------------------------------
+
+sci <- sci %>% mutate_at(vars(age, time_since_sci), as.numeric)
+
+
 # Save data and clear workspace -------------------------------------------
 
 save(sci, file = file.path("workspace", "raw_data.Rdata"))
 
-rm("extra_col_names", "extra_cols", "ids_hcu", "n_cols", "n_rows", 
-   "sci", "swisci_12", "swisci_17", "to_factor")
+rm("calc_row_sum", "ids_hcu", "sci", "to_factor")

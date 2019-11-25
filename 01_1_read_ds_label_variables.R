@@ -245,6 +245,20 @@ swisci_17 <- load_swisci_data(path_ds = file.path("data", "2019-C-006_2017__2019
                               codebook = cb_17)
 
 
+## Recode binary variables
+
+swisci_12 <- swisci_12 %>% 
+  mutate_all(as.character) %>% 
+  mutate_all(~if_else(. %in% "yes", "1", .)) %>% 
+  mutate_all(~if_else(. %in% "no", "0", .))
+
+swisci_17 <- swisci_17 %>% 
+  mutate_all(as.character) %>% 
+  mutate_all(~if_else(. %in% "yes", "1", .)) %>% 
+  mutate_all(~if_else(. %in% "no", "0", .))
+
+
+
 # Save datasets and clear workspace
 
 save(swisci_12, file = file.path("workspace", "swisci_12_raw.RData"))

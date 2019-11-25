@@ -160,8 +160,9 @@ get_bt_continous_vars <- function(df, n_digits = 0, .tp = "ts1", my_vars = "age"
     n_digits = 0
     # my_vars = c("hc_inpatient", "hc_ambulant")
     my_vars = c("age", "time_since_sci")
-    my_vars = c("hc_ambulant_planned", "hc_ambulant_unplanned")
-    get_prop = TRUE
+    # my_vars = c("hc_ambulant_planned", "hc_ambulant_unplanned")
+    get_iqr = TRUE
+    get_prop = FALSE
     .module_hcu_12 = FALSE
     hsr_only = FALSE
   }
@@ -352,14 +353,15 @@ GP <- sci %>%
   filter(module_hcu_12 == 1) %>% 
   select(starts_with("hc_practitioner"))
 
-quantile(GP$hc_practitioner_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
+GP_quant <- quantile(GP$hc_practitioner_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
+GP_quant[c("50%", "25%", "75%")]
 
 GP_2 <- sci %>% 
   filter(tp == "ts2", hc_practitioner == 1) %>% 
   select(starts_with("hc_practitioner"))
 
-quantile(GP_2$hc_practitioner_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
-
+GP_quant_2 <- quantile(GP_2$hc_practitioner_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
+GP_quant_2[c("50%", "25%", "75%")]
 
 # Ambulant
 
@@ -368,14 +370,16 @@ ambulant <- sci %>%
   filter(module_hcu_12 == 1) %>% 
   select(starts_with("hc_ambulant"))
 
-quantile(ambulant$hc_ambulant_planned_num + ambulant$hc_ambulant_unplanned_num , c(0.25, 0.5, 0.75), na.rm = TRUE)
+ambu_quant <- quantile(ambulant$hc_ambulant_planned_num + ambulant$hc_ambulant_unplanned_num , c(0.25, 0.5, 0.75), na.rm = TRUE)
+ambu_quant[c("50%", "25%", "75%")]
+
 
 ambulant_2 <- sci %>% 
   filter(tp == "ts2", hc_ambulant == 1) %>% 
   select(starts_with("hc_ambulant"))
 
-quantile(ambulant_2$hc_ambulant_planned_num + ambulant_2$hc_ambulant_unplanned_num , c(0.25, 0.5, 0.75), na.rm = TRUE)
-
+ambu_quant_2 <- quantile(ambulant_2$hc_ambulant_planned_num + ambulant_2$hc_ambulant_unplanned_num , c(0.25, 0.5, 0.75), na.rm = TRUE)
+ambu_quant_2[c("50%", "25%", "75%")]
 
 # Stationär
 
@@ -384,16 +388,21 @@ stationaer <- sci %>%
   filter(module_hcu_12 == 1) %>% 
   select(starts_with("hc_inpatient"))
 
-quantile(stationaer$hc_inpatient_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
-quantile(stationaer$hc_inpatient_days, c(0.25, 0.5, 0.75), na.rm = TRUE)
+stat_num_quant <- quantile(stationaer$hc_inpatient_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
+stat_days_quant <- quantile(stationaer$hc_inpatient_days, c(0.25, 0.5, 0.75), na.rm = TRUE)
+
+stat_num_quant[c("50%", "25%", "75%")]
+stat_days_quant[c("50%", "25%", "75%")]
 
 stationaer_2 <- sci %>% 
   filter(tp == "ts2", hc_inpatient == 1) %>% 
   select(starts_with("hc_inpatient"))
 
-quantile(stationaer_2$hc_inpatient_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
-quantile(stationaer_2$hc_inpatient_days, c(0.25, 0.5, 0.75), na.rm = TRUE)
+stat_num_quant_2 <- quantile(stationaer_2$hc_inpatient_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
+stat_days_quant_2 <- quantile(stationaer_2$hc_inpatient_days, c(0.25, 0.5, 0.75), na.rm = TRUE)
 
+stat_num_quant_2[c("50%", "25%", "75%")]
+stat_days_quant_2[c("50%", "25%", "75%")]
 
 stationaer_d <- sci %>% 
   filter(tp == "ts1", hc_inpatient == 1) %>% 
