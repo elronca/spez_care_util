@@ -18,36 +18,29 @@ sum(is.na(sci$medstat))
 
 # Calculate relative frequencies of categories across discrete variables ---------------------------------------
 
-get_bt_discrete_vars <- function(df, .tp = "ts1", vars_to_remove =  "tp", vars_to_remove_missings = "",
+get_bt_discrete_vars <- function(df, .tp = "ts1", vars_to_remove = "tp", vars_to_remove_missings = "",
                                  .module_hcu_12 = FALSE, hsr_only = FALSE) {
   
   
-  # Some preconfigurations
+  # Reduce dataset to those participants who responded to hsr questions in both surveys
   
+  if (hsr_only) {
+    
+    ids_hsr_both_surveys <- filter(df, module_hcu_12 %in% 1) %>% count(id_swisci) %>% filter(n == 2) %>% pull(id_swisci)
+    
+    df <- filter(df, id_swisci %in% ids_hsr_both_surveys)
+    
+  }
   
-  # HSR participants of 2012 who particiapted in both surveys
-  
-   ids_hsr_both_surveys <- filter(df, module_hcu_12 %in% 1) %>% 
-     count(id_swisci) %>% 
-     filter(n == 2) %>% 
-     pull(id_swisci)
-  
-
-  # Get survey year
-  
-  year <- if_else(.tp == "ts1", 2012, 2017)
   
   # Select data from one specific survey
   
   df <- filter(df, tp == .tp)
+  year <- if_else(.tp == "ts1", 2012, 2017)
   
   # Reduce dataset to those participants who participated in the hsr module in 2012
   
   if (.module_hcu_12) {df <- df %>% filter(module_hcu_12 %in% 1)}
-  
-  # Reduce dataset to those participants who responded to hsr questions in both surveys
-  
-  if (hsr_only) {df <- df %>% filter(id_swisci %in% ids_hsr_both_surveys)}
   
   
   # Calculate total numbers of categories by variable
@@ -64,10 +57,9 @@ get_bt_discrete_vars <- function(df, .tp = "ts1", vars_to_remove =  "tp", vars_t
            category = if_else(category %in% .tp, "", category))
   
   
-  
   # Remove defined missings using argument: vars_to_remove_missings
   
-  missings_removed <- raw_table %>% filter(!(is.na(category) & variable %in% vars_to_remove_missings))
+  missings_removed <- filter(raw_table, !(is.na(category) & variable %in% vars_to_remove_missings))
   
   
   # Calculate relative frequencies
@@ -76,17 +68,16 @@ get_bt_discrete_vars <- function(df, .tp = "ts1", vars_to_remove =  "tp", vars_t
     
     group_by(variable) %>%
     
-    mutate(prop = n / sum(n) * 100) %>% 
-    
-    ungroup()
+    mutate(prop = n / sum(n) * 100)
   
   
   # Change from number to string, use year in column title
   
   rel_freq_string <- rel_freq_num %>% 
     
-    mutate(prop = formatC(prop, digits = 0, format = "f"),
-           !!str_c("n_perc_", year) := str_c(n, " ", "(", prop, ")")) %>% 
+    mutate(prop = formatC(prop, digits = 0, format = "f")) %>% 
+    
+    mutate(!!str_c("n_perc_", year) := str_c(n, " ", "(", prop, ")")) %>% 
     
     ungroup()
   
@@ -120,7 +111,7 @@ table_discrete_vars <- full_join(table_2012, table_2017, by = c("variable", "cat
 write.csv2(table_discrete_vars, file.path("output", "tab_cat_vars_all.csv"), row.names = FALSE)
 
 
-## Get table one for those only who participated in both surveys
+## Get table one for those only who participated in both SwiSCI surveys
 
 table_2012 <- get_bt_discrete_vars(sci, vars_to_remove_missings = c("lesion_level", "etiology"),  .module_hcu_12 = T)
 table_2017 <- get_bt_discrete_vars(sci, .tp = "ts2", vars_to_remove_missings = c("lesion_level", "etiology"),  .module_hcu_12 = T)
@@ -133,8 +124,7 @@ rm(table_2012, table_2017)
 write.csv2(table_discrete_vars_hsr, file.path("output", "tab_cat_vars_hsr.csv"), row.names = FALSE)
 
 
-
-## Get table one for those only who participated in both surveys
+## Get table one for those only who participated in both HSR surveys
 
 table_2012 <- get_bt_discrete_vars(sci, vars_to_remove_missings = c("lesion_level", "etiology"),  hsr_only = T)
 table_2017 <- get_bt_discrete_vars(sci, .tp = "ts2", vars_to_remove_missings = c("lesion_level", "etiology"), hsr_only = T)
@@ -148,9 +138,8 @@ write.csv2(table_discrete_vars_hsr_only, file.path("output", "tab_cat_vars_hsr_o
 
 # Summarize continuous variables ------------------------------------------------------------------------------------
 
-get_bt_continous_vars <- function(df, n_digits = 0, .tp = "ts1", my_vars = "age", 
-                                  get_iqr = TRUE, get_prop = FALSE, .module_hcu_12 = FALSE,
-                                  hsr_only = FALSE) {
+get_bt_continous_vars <- function(df, n_digits = 0, .tp = "ts1", my_vars, get_iqr = TRUE, get_prop = FALSE, 
+                                  .module_hcu_12 = FALSE, hsr_only = FALSE) {
   
   if(sum(get_iqr, get_prop) != 1) stop("Either get_iqr or get_prop has to be true; both cannot")
   
@@ -164,24 +153,29 @@ get_bt_continous_vars <- function(df, n_digits = 0, .tp = "ts1", my_vars = "age"
     get_iqr = TRUE
     get_prop = FALSE
     .module_hcu_12 = FALSE
-    hsr_only = FALSE
+    hsr_only = T
   }
   
   
-  # HSR participants of 2012 who particiapted in both surveys
+  if (hsr_only) {
+    
+    ids_hsr_both_surveys <- filter(df, module_hcu_12 %in% 1) %>% 
+      count(id_swisci) %>% filter(n == 2) %>% pull(id_swisci)
+    
+    df <- df %>% filter(id_swisci %in% ids_hsr_both_surveys)
+    
+  }
   
-  ids_hsr_both_surveys <- filter(df, module_hcu_12 %in% 1) %>% 
-    count(id_swisci) %>% 
-    filter(n == 2) %>% 
-    pull(id_swisci)
-  
-  year <- if_else(.tp == "ts1", 2012, 2017)
   df <- filter(df, tp == .tp)
+  year <- if_else(.tp == "ts1", 2012, 2017)
+  
   
   
   if (.module_hcu_12) {df <- df %>% filter(module_hcu_12 %in% 1)}
   
-  if (hsr_only) {df <- df %>% filter(id_swisci %in% ids_hsr_both_surveys)}
+  
+  
+  
   
   
   if(get_iqr) {
@@ -249,7 +243,8 @@ get_bt_continous_vars <- function(df, n_digits = 0, .tp = "ts1", my_vars = "age"
 }
 
 
-## All participants
+
+# Continuous socio-demographic variables of all participants ------------------------------------
 
 cont_vars_2012 <- get_bt_continous_vars(sci, my_vars = c("age", "time_since_sci"))
 cont_vars_2017 <- get_bt_continous_vars(sci, my_vars = c("age", "time_since_sci"), .tp = "ts2")
@@ -259,7 +254,8 @@ table_continous_vars <- full_join(cont_vars_2012, cont_vars_2017, by = c("variab
 write.csv2(table_continous_vars, file.path("output", "tab_num_vars_all.csv"), row.names = FALSE)
 
 
-## Participants of hsr survey in 2012
+
+# Continous socio-demographic variables of participants who answered the HSR questionnaire in 2012 --------------------------
 
 cont_vars_2012 <- get_bt_continous_vars(sci, my_vars = c("age", "time_since_sci"),  .module_hcu_12 = TRUE)
 cont_vars_2017 <- get_bt_continous_vars(sci, my_vars = c("age", "time_since_sci"), .tp = "ts2", .module_hcu_12 = TRUE)
@@ -271,7 +267,7 @@ write.csv2(table_continous_vars_hsr, file.path("output", "tab_num_vars_hsr.csv")
 rm(cont_vars_2012, cont_vars_2017)
 
 
-## Participants of hsr questions in both surveys
+# Continous socio-demographic variables of only those participants who answered HSR questions in both years -------------------
 
 cont_vars_2012 <- get_bt_continous_vars(sci, my_vars = c("age", "time_since_sci"),  hsr_only = TRUE)
 cont_vars_2017 <- get_bt_continous_vars(sci, my_vars = c("age", "time_since_sci"), .tp = "ts2", hsr_only = TRUE)
@@ -280,9 +276,11 @@ table_continous_vars_hsr_only <- full_join(cont_vars_2012, cont_vars_2017, by = 
 
 write.csv2(table_continous_vars_hsr_only, file.path("output", "tab_num_vars_hsr_only.csv"), row.names = FALSE)
 
-rm("cont_vars_2012", "cont_vars_2017", "table_2012", "table_2017", 
-   "table_continous_vars", "table_continous_vars_hsr", "table_continous_vars_hsr_only", 
-   "table_discrete_vars", "table_discrete_vars_hsr", "table_discrete_vars_hsr_only")
+
+# Clear workspace ----------------------------------------------------------------------------------------------------------
+
+rm("cont_vars_2012", "cont_vars_2017", "table_2012", "table_2017", "table_continous_vars", "table_continous_vars_hsr", 
+   "table_continous_vars_hsr_only", "table_discrete_vars", "table_discrete_vars_hsr", "table_discrete_vars_hsr_only")
 
 
 # Reorder healthcare utilization variables
@@ -298,7 +296,8 @@ hc_vars <- select(sci, starts_with("hc_")) %>% names() %>% {
 }
 
 
-# Select categorical healthcare utilizaiton variables
+
+# Categorical healthcare variables of all participants who responded to the HSR questions ------------------------------------
 
 hc_vars_cat <- str_subset(hc_vars, "_num|_days", negate = TRUE)
 
@@ -313,7 +312,8 @@ table_hc_vars <- full_join(hc_2012, hc_2017, by = c("variable")) %>%
 write.csv2(table_hc_vars, file.path("output", "tab_hc_vars_cat.csv"), row.names = FALSE)
 
 
-# Only persons who took part in both surveys
+
+# Categorical healthcare variables of those participants who responded to the HSR questions in both surveys -------------------
 
 hc_vars_cat <- str_subset(hc_vars, "_num|_days", negate = TRUE)
 
@@ -331,207 +331,96 @@ write.csv2(table_hc_vars_hc_hsr_only, file.path("output", "table_hc_vars_hc_hsr_
 
 
 
-# Select numeric healthcare utilizaiton variables
-
-hc_vars_num <- str_subset(hc_vars, "_num")
-
-sci <- sci %>% mutate_at(vars(hc_vars_num), ~if_else(is.na(.), 0L, .))
-
-sci %>% 
-  filter(tp == "ts1" & module_hcu_12 == 1) %>% 
-  select(hc_vars_num)
+# Calculate number of visits to health care provider for those who at least once visited a provider at least once ----------------------
 
 
+## Function
+
+get_provider_visits_iqr <- function(.provider_dic, .provider_num, HSR_both_only, .tp = "ts1") {
+  
+  if(HSR_both_only) {
+    
+  ids_hsr_both_surveys <- filter(sci, module_hcu_12 %in% 1) %>% 
+    count(id_swisci) %>% 
+    filter(n == 2) %>% 
+    pull(id_swisci)
+  
+  sci <- filter(sci, id_swisci %in% ids_hsr_both_surveys)
+  
+  }
+  
+  quants <- sci %>% 
+    
+    filter(tp == .tp & module_hcu_12 == 1, !!sym(.provider_dic) == 1) %>% 
+    
+    summarize(quants = list(enframe(quantile(!!sym(.provider_num), probs = c(0.25, 0.5, 0.75), na.rm = T)))) %>% 
+    
+    unnest(cols = c(quants)) %>% 
+    
+    mutate(value = round(value, 0))
+  
+  quants_str <- str_c(quants[2, "value"], " (", quants[1, "value"], "\u2013", quants[3, "value"], ")")
+  names(quants_str) <- .provider_num
+  
+  return(quants_str)
+  
+}
 
 
-## Special calculations, all participants
 
-# Hausarzt
+## Providers
 
-GP <- sci %>% 
-  filter(tp == "ts1", hc_practitioner == 1) %>% 
-  filter(module_hcu_12 == 1) %>% 
-  select(starts_with("hc_practitioner"))
+provider_dic <- c("hc_practitioner", "hc_paraplegic", 
+                  "hc_ambulant_planned", "hc_ambulant_unplanned", 
+                  "hc_inpatient", "hc_inpatient")
 
-GP_quant <- quantile(GP$hc_practitioner_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
-GP_quant[c("50%", "25%", "75%")]
-
-GP_2 <- sci %>% 
-  filter(tp == "ts2", hc_practitioner == 1) %>% 
-  select(starts_with("hc_practitioner"))
-
-GP_quant_2 <- quantile(GP_2$hc_practitioner_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
-GP_quant_2[c("50%", "25%", "75%")]
-
-# Ambulant
-
-ambulant <- sci %>% 
-  filter(tp == "ts1", hc_ambulant == 1) %>% 
-  filter(module_hcu_12 == 1) %>% 
-  select(starts_with("hc_ambulant"))
-
-ambu_quant <- quantile(ambulant$hc_ambulant_planned_num + ambulant$hc_ambulant_unplanned_num , c(0.25, 0.5, 0.75), na.rm = TRUE)
-ambu_quant[c("50%", "25%", "75%")]
+provider_num <- c("hc_practitioner_num", "hc_paraplegic_num", 
+                  "hc_ambulant_planned_num", "hc_ambulant_unplanned_num",
+                  "hc_inpatient_num", "hc_inpatient_days")
 
 
-ambulant_2 <- sci %>% 
-  filter(tp == "ts2", hc_ambulant == 1) %>% 
-  select(starts_with("hc_ambulant"))
+## Get data
 
-ambu_quant_2 <- quantile(ambulant_2$hc_ambulant_planned_num + ambulant_2$hc_ambulant_unplanned_num , c(0.25, 0.5, 0.75), na.rm = TRUE)
-ambu_quant_2[c("50%", "25%", "75%")]
 
-# Stationär
+hcu_12_all <- map2(.x = provider_dic, .y = provider_num, get_provider_visits_iqr, .tp = "ts1", HSR_both_only = FALSE) %>% 
+  unlist() %>% enframe(name = "provider", "n_visits_2012_hsr_all")
 
-stationaer <- sci %>% 
-  filter(tp == "ts1", hc_inpatient == 1) %>% 
-  filter(module_hcu_12 == 1) %>% 
-  select(starts_with("hc_inpatient"))
+hcu_12_same <- map2(.x = provider_dic, .y = provider_num, get_provider_visits_iqr, .tp = "ts1", HSR_both_only = TRUE) %>% 
+  unlist() %>% enframe(name = "provider", "n_visits_2012_same_persons")
 
-stat_num_quant <- quantile(stationaer$hc_inpatient_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
-stat_days_quant <- quantile(stationaer$hc_inpatient_days, c(0.25, 0.5, 0.75), na.rm = TRUE)
 
-stat_num_quant[c("50%", "25%", "75%")]
-stat_days_quant[c("50%", "25%", "75%")]
+hcu_17_all <- map2(.x = provider_dic, .y = provider_num, get_provider_visits_iqr, .tp = "ts2", HSR_both_only = TRUE) %>% 
+  unlist() %>% enframe(name = "provider", "n_visits_2017_hsr_all")
 
-stationaer_2 <- sci %>% 
-  filter(tp == "ts2", hc_inpatient == 1) %>% 
-  select(starts_with("hc_inpatient"))
+hcu_17_same <- map2(.x = provider_dic, .y = provider_num, get_provider_visits_iqr, .tp = "ts2", HSR_both_only = FALSE) %>% 
+  unlist() %>% enframe(name = "provider", "n_visits_2017_same_persons")
 
-stat_num_quant_2 <- quantile(stationaer_2$hc_inpatient_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
-stat_days_quant_2 <- quantile(stationaer_2$hc_inpatient_days, c(0.25, 0.5, 0.75), na.rm = TRUE)
 
-stat_num_quant_2[c("50%", "25%", "75%")]
-stat_days_quant_2[c("50%", "25%", "75%")]
+## Join into table
 
-stationaer_d <- sci %>% 
-  filter(tp == "ts1", hc_inpatient == 1) %>% 
-  filter(module_hcu_12 == 1) %>% 
-  select(starts_with("hc_inpatient"))
+n_visits_table <- list(hcu_12_all, hcu_17_all, hcu_12_same, hcu_17_same) %>% reduce(left_join, by = "provider")
 
-quantile(stationaer_2$hc_inpatient_num , c(0.25, 0.5, 0.75), na.rm = TRUE)
+write.csv2(n_visits_table, file.path("output", "n_visits_table_IQR.csv"), row.names = FALSE)
 
 
 
 
-
-## Special calculations, participants who participated in both surveys
-
-ids_hsr_both_surveys <- filter(sci, module_hcu_12 %in% 1) %>% 
-  count(id_swisci) %>% 
-  filter(n == 2) %>% 
-  pull(id_swisci)
-
-sci_both <- filter(sci, id_swisci %in% ids_hsr_both_surveys)
-
-# Hausarzt
-
-GP <- sci_both %>% 
-  filter(tp == "ts1", hc_practitioner == 1) %>% 
-  select(starts_with("hc_practitioner"))
-
-quantile(GP$hc_practitioner_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
-
-GP_2 <- sci_both %>% 
-  filter(tp == "ts2", hc_practitioner == 1) %>% 
-  select(starts_with("hc_practitioner"))
-
-quantile(GP_2$hc_practitioner_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
-
-
-# Ambulant
-
-ambulant <- sci_both %>% 
-  filter(tp == "ts1", hc_ambulant == 1) %>% 
-  select(starts_with("hc_ambulant"))
-
-quantile(ambulant$hc_ambulant_planned_num + ambulant$hc_ambulant_unplanned_num , c(0.25, 0.5, 0.75), na.rm = TRUE)
-
-ambulant_2 <- sci_both %>% 
-  filter(tp == "ts2", hc_ambulant == 1) %>% 
-  select(starts_with("hc_ambulant"))
-
-quantile(ambulant_2$hc_ambulant_planned_num + ambulant_2$hc_ambulant_unplanned_num , c(0.25, 0.5, 0.75), na.rm = TRUE)
-
-
-# Stationär
-
-stationaer <- sci_both %>% 
-  filter(tp == "ts1", hc_inpatient == 1) %>% 
-  select(starts_with("hc_inpatient"))
-
-quantile(stationaer$hc_inpatient_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
-quantile(stationaer$hc_inpatient_days, c(0.25, 0.5, 0.75), na.rm = TRUE)
-
-stationaer_2 <- sci_both %>% 
-  filter(tp == "ts2", hc_inpatient == 1) %>% 
-  select(starts_with("hc_inpatient"))
-
-quantile(stationaer_2$hc_inpatient_num, c(0.25, 0.5, 0.75), na.rm = TRUE)
-quantile(stationaer_2$hc_inpatient_days, c(0.25, 0.5, 0.75), na.rm = TRUE)
-
-
-stationaer_d <- sci %>% 
-  filter(tp == "ts1", hc_inpatient == 1) %>% 
-  filter(module_hcu_12 == 1) %>% 
-  select(starts_with("hc_inpatient"))
-
-quantile(stationaer_2$hc_inpatient_num , c(0.25, 0.5, 0.75), na.rm = TRUE)
-
-
-
-
-
-tp2_sci_center <- sci %>% 
-  filter(hc_paracenter == 1)
+# Get proportion of visits to SCI centers by insitution and utilization type --------------
 
 vars_paracenter <- str_subset(hc_vars_cat, "hc_paracenter")
 
-paracenter_rf <- get_bt_continous_vars(tp2_sci_center, my_vars = vars_paracenter, get_iqr = FALSE, get_prop = TRUE, 
-                                 .tp = "ts2")
-
+paracenter_rf <- sci %>% 
+  filter(hc_paracenter == 1) %>% 
+  get_bt_continous_vars(my_vars = vars_paracenter, get_iqr = FALSE, get_prop = TRUE, .tp = "ts2") %>% 
+  filter(variable != "hc_paracenter")
+  
 write.csv2(paracenter_rf, file.path("output", "paracenter_rf.csv"), row.names = FALSE)
 
 
+# Clear workspace ---------------------------------------------------------
 
-
-## Persons who had an inpatient stay
-
-inpatient_17 <- sci %>% 
-  filter(tp == "ts2") %>% 
-  filter(hc_inpatient == 1)
-
-inp_vars <- inpatient_17 %>% names() %>% str_subset("hc_para") %>% str_subset("_inp")
-amb_vars <- inpatient_17 %>% names() %>% str_subset("hc_para") %>% str_subset("_ambulant")
-
-inpatient_17 <- inpatient_17 %>% 
-  mutate(spec_care_inp = hc_paracenter_Balgrist_inpat +  hc_paracenter_RehaB_inpat +
-                         hc_paracenter_CRR_inpat + hc_paracenter_SPZ_inpat +
-                         hc_paracenter_Plein_Soleil_inpat + hc_paracenter_Bellinzona_inpat) %>% 
-  
-  mutate(spec_care_inp = if_else(spec_care_inp >= 1L, 1, 0))
-  
-                       # inpatient_17 = if_else(inpatient_17 >= 1L, 1, 0))
-                       
-sum(inpatient_17$spec_care_inp)
-
-
-
-ambulant_17 <- sci %>% 
-  filter(tp == "ts2") %>% 
-  filter(hc_ambulant == 1)
-
-amb_vars <- ambulant_17 %>% names() %>% str_subset("hc_para") %>% str_subset("_ambulant")
-
-ambulant_17 <- ambulant_17 %>% 
-  mutate(spec_care_amb = hc_paracenter_Balgrist_ambulant +  hc_paracenter_RehaB_ambulant +
-           hc_paracenter_CRR_ambulant + hc_paracenter_SPZ_ambulant +
-           hc_paracenter_Plein_Soleil_ambulant + hc_paracenter_Bellinzona_ambulant) %>% 
-  
-  mutate(spec_care_amb = if_else(spec_care_amb >= 1L, 1, 0))
-
-# inpatient_17 = if_else(inpatient_17 >= 1L, 1, 0))
-
-sum(ambulant_17$spec_care_amb)
-
-
+rm("get_bt_continous_vars", "get_bt_discrete_vars", "get_provider_visits_iqr", 
+  "hc_2012", "hc_2017", "hc_vars", "hc_vars_cat", "hcu_12_all", 
+  "hcu_12_same", "hcu_17_all", "hcu_17_same", "n_visits_table", 
+  "paracenter_rf", "provider_dic", "provider_num", "sci", "table_hc_vars", 
+  "table_hc_vars_hc_hsr_only", "vars_paracenter")
