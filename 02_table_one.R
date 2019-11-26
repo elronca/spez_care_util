@@ -143,21 +143,7 @@ get_bt_continous_vars <- function(df, n_digits = 0, .tp = "ts1", my_vars, get_iq
   
   if(sum(get_iqr, get_prop) != 1) stop("Either get_iqr or get_prop has to be true; both cannot")
   
-  if(FALSE) {
-    df <- sci
-    .tp = "ts1"
-    n_digits = 0
-    # my_vars = c("hc_inpatient", "hc_ambulant")
-    my_vars = c("age", "time_since_sci")
-    # my_vars = c("hc_ambulant_planned", "hc_ambulant_unplanned")
-    get_iqr = TRUE
-    get_prop = FALSE
-    .module_hcu_12 = FALSE
-    hsr_only = T
-  }
-  
-  
-  if (hsr_only) {
+  if(hsr_only) {
     
     ids_hsr_both_surveys <- filter(df, module_hcu_12 %in% 1) %>% 
       count(id_swisci) %>% filter(n == 2) %>% pull(id_swisci)
@@ -171,11 +157,7 @@ get_bt_continous_vars <- function(df, n_digits = 0, .tp = "ts1", my_vars, get_iq
   
   
   
-  if (.module_hcu_12) {df <- df %>% filter(module_hcu_12 %in% 1)}
-  
-  
-  
-  
+  if(.module_hcu_12) {df <- df %>% filter(module_hcu_12 %in% 1)}
   
   
   if(get_iqr) {
@@ -202,16 +184,7 @@ get_bt_continous_vars <- function(df, n_digits = 0, .tp = "ts1", my_vars, get_iq
     
   }
   
-  if(FALSE) {
-    df <- sci
-    .tp = "ts1"
-    n_digits = 0
-    my_vars = c("hc_inpatient", "hc_ambulant")
-    .module_hcu_12 = TRUE
-  }
-  
-  
-  
+
   if(get_prop) {
     
     res <- df %>% 
@@ -294,7 +267,6 @@ hc_vars <- select(sci, starts_with("hc_")) %>% names() %>% {
     str_subset(., "hc_paracenter"))
   
 }
-
 
 
 # Categorical healthcare variables of all participants who responded to the HSR questions ------------------------------------
