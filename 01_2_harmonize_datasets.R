@@ -88,13 +88,13 @@ sci <- mutate(sci,
 
 if(F) {
   n_miss_vars <- sci %>% 
-  group_by(tp) %>% 
-  select(tp, starts_with("hc_")) %>% 
-  summarize_all(~sum(is.na(.))) %>% 
-  pivot_longer(cols = starts_with("hc_"), names_to = "hcu_type", values_to = "n_missings") %>% 
-  pivot_wider(names_from = tp, values_from = n_missings) %>% 
-  mutate(ts1_prop = round(ts1 / 1550 * 100, 0),
-         ts2_prop = round(ts2 / 1550 * 100, 0))
+    group_by(tp) %>% 
+    select(tp, starts_with("hc_")) %>% 
+    summarize_all(~sum(is.na(.))) %>% 
+    pivot_longer(cols = starts_with("hc_"), names_to = "hcu_type", values_to = "n_missings") %>% 
+    pivot_wider(names_from = tp, values_from = n_missings) %>% 
+    mutate(ts1_prop = round(ts1 / 1550 * 100, 0),
+           ts2_prop = round(ts2 / 1550 * 100, 0))
   
   n_miss_vars %>% filter(ts1_prop >= 99) %>% pull(hcu_type)
 }
@@ -104,7 +104,9 @@ if(F) {
 
 
 
-# Medizinische Versorgung - Inanspruchnahme 2012 --------------------------
+# Harmonize the differently coded utilization variables in 2012 and 2017 --------------------------
+
+
 
 calc_row_sum <- function(df, sum_var_1, sum_var_2, res_sum_vars, res_sum_vars_dic) {
   
@@ -147,50 +149,6 @@ sci <- calc_row_sum(sci, "hc_practitioner_check", "hc_practitioner_acute", "hc_p
 sci <- calc_row_sum(sci, "hc_paraplegic_check", "hc_paraplegic_acute", "hc_paraplegic_num", "hc_paraplegic")
 
 
-# Recode inpatient hospitalizations ---------------------------------------
-
-sci <- sci %>% 
-  mutate_at(vars(starts_with("hc_inpatient")), ~if_else(. %in% c("777", "888", "999", "unknown"), NA_character_, .)) %>% 
-  mutate_at(vars(starts_with("hc_inpatient")), ~as.integer(.)) %>% 
-  
-  # If we have a NA in nc_inpatient but not in hc_inpatient_num/days and also there are no zeros indicated in these variables, 
-  # then we recode this variable to be 1
-  
-  mutate(hc_inpatient = if_else(is.na(hc_inpatient) & all(is.na(na_if(select(., hc_inpatient_num, hc_inpatient_days), 0))), 1L, hc_inpatient)) %>% 
-
-  # If all records are NA then we guess that the respondent have never been to the hospital
-  mutate_at(vars(starts_with("hc_inpatient")), ~if_else(is.na(hc_inpatient) & is.na(hc_inpatient_num) & is.na(hc_inpatient_days), 0L, .)) %>% 
-  
-  # We recode the number of inpatient visits and stays as 0 if there hasn't been indicated that there were any visits at all
-  mutate_at(vars(hc_inpatient_num, hc_inpatient_days), ~if_else(hc_inpatient %in% 0L, 0L, .))
-
-
-# Recode outpatient hospitalizations --------------------------------------
-
-sci %>% select(starts_with("hc_ambulant"))
-
-sci <- sci %>% 
-  mutate_at(vars(starts_with("hc_ambulant")), ~if_else(. %in% c("777", "888", "999", "unknown"), NA_character_, .)) %>% 
-  mutate_at(vars(starts_with("hc_ambulant")), ~as.integer(.)) %>% 
-  
-  mutate(
-    hc_ambulant_planned = if_else(hc_ambulant_planned_num > 0L & !is.na(hc_ambulant_planned_num), 1L, hc_ambulant_planned),
-    hc_ambulant_unplanned = if_else(hc_ambulant_unplanned_num > 0L & !is.na(hc_ambulant_unplanned_num), 1L, hc_ambulant_unplanned)) %>% 
-  
-  # If all specific ambulant specific variables variables are NA and if the hc_ambulant is not 1 then hc_ambulant becomes 0 
-  mutate(hc_ambulant = if_else(pmap_lgl(select(., starts_with("hc_ambulant_")), ~all(is.na(c(...)))) & !hc_ambulant %in% 1L, 0L, hc_ambulant)) %>% 
-  
-  # If any of the specific ambulant variables are larger than one then hc_ambulant becomes 1
-  mutate(hc_ambulant = if_else(pmap_lgl(select(., starts_with("hc_ambulant_")), ~any(c(...) > 0)) & is.na(hc_ambulant), 1L, hc_ambulant)) %>% 
-  
-  # If any of the specific ambulant variables are either NA or 0 and hc_ambulant is NA it becomes 0
-  mutate(hc_ambulant = if_else(pmap_lgl(select(., starts_with("hc_ambulant_")), ~all(is.na(na_if(c(...), 0)))) & is.na(hc_ambulant), 0L, hc_ambulant)) %>% 
-  
-  # If somebody indicated not to have utilized any ambulant services then all specific ambulant services will be coded as 0
-  mutate_at(vars(starts_with("hc_ambulant_")), ~if_else(hc_ambulant %in% 0L, 0L, .))
-
-
-
 # Recode paracenter utilization -------------------------------------------
 
 sci <- sci %>% 
@@ -208,6 +166,60 @@ sci <- sci %>%
   
   # If somebody indicated not to have utilized any paracenter services then all specific paracenter services will be coded as 0
   mutate_at(vars(starts_with("hc_paracenter_")), ~if_else(hc_paracenter %in% 0L, 0L, .))
+
+
+# Recode inpatient hospitalizations ---------------------------------------
+
+sci <- sci %>% 
+  mutate_at(vars(starts_with("hc_inpatient")), ~if_else(. %in% c("777", "888", "999", "unknown"), NA_character_, .)) %>% 
+  mutate_at(vars(starts_with("hc_inpatient")), ~as.integer(.)) %>% 
+  
+  # If we have a NA in nc_inpatient but not in hc_inpatient_num/days and also there are no zeros indicated in these variables, 
+  # then we recode this variable to be 1
+  
+  mutate(hc_inpatient = if_else(is.na(hc_inpatient) & all(is.na(na_if(select(., hc_inpatient_num, hc_inpatient_days), 0))), 1L, hc_inpatient)) %>% 
+  
+  # If all records are NA then we guess that the respondent have never been to the hospital
+  mutate_at(vars(starts_with("hc_inpatient")), ~if_else(is.na(hc_inpatient) & is.na(hc_inpatient_num) & is.na(hc_inpatient_days), 0L, .)) %>% 
+  
+  # We recode the number of inpatient visits and stays as 0 if there hasn't been indicated that there were any visits at all
+  mutate_at(vars(hc_inpatient_num, hc_inpatient_days), ~if_else(hc_inpatient %in% 0L, 0L, .))
+
+
+# Recode outpatient hospitalizations --------------------------------------
+
+sci %>% select(starts_with("hc_ambulant"))
+
+vars_ambulant_paracenter <- names(sci) %>% str_subset("ambulant") %>% str_subset("paracenter")
+
+sci[vars_ambulant_paracenter]
+
+sci <- sci %>% 
+  mutate_at(vars(starts_with("hc_ambulant")), ~if_else(. %in% c("777", "888", "999", "unknown"), NA_character_, .)) %>% 
+  mutate_at(vars(starts_with("hc_ambulant")), ~as.integer(.)) %>% 
+  
+  mutate(
+    hc_ambulant_planned = if_else(hc_ambulant_planned_num > 0L & !is.na(hc_ambulant_planned_num), 1L, hc_ambulant_planned),
+    hc_ambulant_unplanned = if_else(hc_ambulant_unplanned_num > 0L & !is.na(hc_ambulant_unplanned_num), 1L, hc_ambulant_unplanned)) %>% 
+  
+  # If all specific ambulant specific variables variables are NA and if the hc_ambulant is not 1 then hc_ambulant becomes 0 
+  mutate(hc_ambulant = if_else(pmap_lgl(select(., starts_with("hc_ambulant_")), ~all(is.na(c(...)))) & !hc_ambulant %in% 1L, 0L, hc_ambulant)) %>% 
+  
+  # If any of the specific ambulant variables are larger than 1 then hc_ambulant becomes 1
+  mutate(hc_ambulant = if_else(pmap_lgl(select(., starts_with("hc_ambulant_")), ~any(c(...) > 0)) & is.na(hc_ambulant), 1L, hc_ambulant)) %>% 
+  
+  # If any of the specific ambulant variables are either NA or 0 and hc_ambulant is NA it becomes 0
+  mutate(hc_ambulant = if_else(pmap_lgl(select(., starts_with("hc_ambulant_")), ~all(is.na(na_if(c(...), 0)))) & is.na(hc_ambulant), 0L, hc_ambulant)) %>% 
+  
+  # If somebody indicated not to have utilized any ambulant services then all specific ambulant services will be coded as 0
+  mutate_at(vars(starts_with("hc_ambulant_")), ~if_else(hc_ambulant %in% 0L, 0L, .)) %>% 
+  
+  # create new variable -> total number of ambulant visits
+  mutate(hc_ambulant_num = select(., c(hc_ambulant_planned_num, hc_ambulant_unplanned_num )) %>% rowSums(na.rm = TRUE),
+         hc_ambulant_num = as.integer(hc_ambulant_num)) %>% 
+
+  # Change no ambulant visits to ambulant visits if somebody indicated that they had an ambulant visit at an SCI center
+  mutate(hc_ambulant = if_else(select(., vars_ambulant_paracenter) %>% rowSums(na.rm = T) > 0L, 1L, hc_ambulant))
 
 
 # Rename variables

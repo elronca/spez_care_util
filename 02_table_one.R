@@ -283,6 +283,10 @@ table_hc_vars <- full_join(hc_2012, hc_2017, by = c("variable")) %>%
 
 write.csv2(table_hc_vars, file.path("output", "tab_hc_vars_cat.csv"), row.names = FALSE)
 
+cat("Some people may have indicated that they made an ambulant visit but they do not state, whether it was planned or unplanned
+    furthermore, some have indicated that they did not make ambulant visits but they later on responded that they had an
+    ambulant visit to a specialized clinic, therefore the hc_ambulant was recoded")
+
 
 
 # Categorical healthcare variables of those participants who responded to the HSR questions in both surveys -------------------
@@ -343,16 +347,15 @@ get_provider_visits_iqr <- function(.provider_dic, .provider_num, HSR_both_only,
 ## Providers
 
 provider_dic <- c("hc_practitioner", "hc_paraplegic", 
-                  "hc_ambulant_planned", "hc_ambulant_unplanned", 
+                  "hc_ambulant", "hc_ambulant_planned", "hc_ambulant_unplanned", 
                   "hc_inpatient", "hc_inpatient")
 
 provider_num <- c("hc_practitioner_num", "hc_paraplegic_num", 
-                  "hc_ambulant_planned_num", "hc_ambulant_unplanned_num",
+                  "hc_ambulant_num", "hc_ambulant_planned_num", "hc_ambulant_unplanned_num",
                   "hc_inpatient_num", "hc_inpatient_days")
 
 
 ## Get data
-
 
 hcu_12_all <- map2(.x = provider_dic, .y = provider_num, get_provider_visits_iqr, .tp = "ts1", HSR_both_only = FALSE) %>% 
   unlist() %>% enframe(name = "provider", "n_visits_2012_hsr_all")
@@ -373,8 +376,6 @@ hcu_17_same <- map2(.x = provider_dic, .y = provider_num, get_provider_visits_iq
 n_visits_table <- list(hcu_12_all, hcu_17_all, hcu_12_same, hcu_17_same) %>% reduce(left_join, by = "provider")
 
 write.csv2(n_visits_table, file.path("output", "n_visits_table_IQR.csv"), row.names = FALSE)
-
-
 
 
 # Get proportion of visits to SCI centers by insitution and utilization type --------------
