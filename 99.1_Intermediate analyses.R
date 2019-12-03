@@ -1,4 +1,22 @@
 
+library(tidyverse)
+
+# Check number of missings in Medstat -------------------------------------
+
+library(naniar)
+
+load(file.path("workspace", "raw_data.Rdata"))
+
+sci %>% 
+  filter(tp == "ts2") %>% 
+  replace_with_na(replace = list(medstat = "")) %>% 
+  miss_var_summary() %>% 
+  filter(variable == "medstat")
+  
+miss_var_summary(sci) %>% filter(!str_detect(variable, "hc_"))
+
+sci %>% filter(tp == "ts2") %>% nrow()
+
 
 ## Some more calculations
 
