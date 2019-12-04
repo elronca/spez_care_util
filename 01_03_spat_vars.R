@@ -342,6 +342,20 @@ spatial_vars <- st_read(file.path("data", "MedStat_GIS", "MedStat_Base_2011_regi
 
 
 
+# Degurba -----------------------------------------------------------------
+
+# https://ec.europa.eu/eurostat/de/web/gisco/geodata/reference-data/population-distribution-demography/degurba
+
+degurba <- st_read(file.path("data", "Degurba", "DGURBA_2018_01M.shp"), 
+                        as_tibble = TRUE, options = "ENCODING=WINDOWS-1252",
+                        stringsAsFactors = FALSE)
+
+degurba_CH <- degurba %>% 
+  filter(str_detect(NUTS, "CH"))
+
+
+
+
 
 
 
