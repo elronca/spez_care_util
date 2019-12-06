@@ -111,19 +111,19 @@ get_pop_centroids <- function(i, my_intersects, my_crs, pop_dens_file, map_file)
 # Run function over all MedStat regions
 
 if(F) {
-
-pb <- progress_estimated(nrow(MS_spdf))
-
-my_coordinates <- map(.x = seq_len(nrow(MS_spdf)), .f = get_pop_centroids, 
-                      my_intersects = intersects, 
-                      my_crs = crs_MS_spdf, 
-                      pop_dens_file = pop_hectare_sp, 
-                      map_file = MS_spdf)
-
-names(my_coordinates) <- MS_spdf$MEDSTAT04
-
-save(my_coordinates, file = file.path("workspace", "my_coordinates.Rdata"))
-
+  
+  pb <- progress_estimated(nrow(MS_spdf))
+  
+  my_coordinates <- map(.x = seq_len(nrow(MS_spdf)), .f = get_pop_centroids, 
+                        my_intersects = intersects, 
+                        my_crs = crs_MS_spdf, 
+                        pop_dens_file = pop_hectare_sp, 
+                        map_file = MS_spdf)
+  
+  names(my_coordinates) <- MS_spdf$MEDSTAT04
+  
+  save(my_coordinates, file = file.path("workspace", "my_coordinates.Rdata"))
+  
 }
 
 load(file.path("workspace", "my_coordinates.Rdata"))
@@ -161,12 +161,12 @@ SCI_centers <- tibble(
   mutate(center_addr_string = str_c(street, PLZ, Ort, "Schweiz", sep = " + "))
 
 if(F) {
-
-ggmap::register_google("AIzaSyATu6r_ZkcS672g5B9T9HqdFktaKN_shhk")
-
-cent_coordinates <- geocode(SCI_centers$center_addr_string, output = "latlon", source = "google")
-save(cent_coordinates, file = file.path("workspace", "cent_coordinates.RData"))
-
+  
+  ggmap::register_google("AIzaSyATu6r_ZkcS672g5B9T9HqdFktaKN_shhk")
+  
+  cent_coordinates <- geocode(SCI_centers$center_addr_string, output = "latlon", source = "google")
+  save(cent_coordinates, file = file.path("workspace", "cent_coordinates.RData"))
+  
 }
 
 
@@ -206,91 +206,91 @@ cent_addresses <- do.call("rbind", replicate(n_rows_MS, cent_addresses, simplify
 dist_cent <- bind_cols(MS_coordinates_cent, cent_addresses)
 
 if(F) {
-
-
-# We calculate the driving times using the google directions API ----------
-
-google_distance_delayed <- function(x, y) {
   
-  pb$tick()$print()
   
-  Sys.sleep(0.5)
+  # We calculate the driving times using the google directions API ----------
   
-  key <- "AIzaSyATu6r_ZkcS672g5B9T9HqdFktaKN_shhk"
-  
-  drv_dist <- googleway::google_distance(
-    origins = x, 
-    destinations = y, 
-    key = key, 
-    mode = "driving")
-  
-  # From some places like Zermatt it is not possible to drive by car, therefore we calculate the 
-  # travel distance by public transport
-  
-  if(unlist(drv_dist$rows$elements)["status"] == "ZERO_RESULTS") {
+  google_distance_delayed <- function(x, y) {
     
-    drv_dist <- google_distance(origins = x, destinations = y, key = key, 
-                                mode = "transit")
+    pb$tick()$print()
+    
+    Sys.sleep(0.5)
+    
+    key <- "AIzaSyATu6r_ZkcS672g5B9T9HqdFktaKN_shhk"
+    
+    drv_dist <- googleway::google_distance(
+      origins = x, 
+      destinations = y, 
+      key = key, 
+      mode = "driving")
+    
+    # From some places like Zermatt it is not possible to drive by car, therefore we calculate the 
+    # travel distance by public transport
+    
+    if(unlist(drv_dist$rows$elements)["status"] == "ZERO_RESULTS") {
+      
+      drv_dist <- google_distance(origins = x, destinations = y, key = key, 
+                                  mode = "transit")
+      
+    }
+    
+    drv_dist_df <- data.frame(
+      
+      origin = drv_dist$origin_addresses,
+      destination = drv_dist$destination_addresses,
+      
+      lapply(distance_elements(drv_dist), function(x) {
+        
+        data.frame(
+          duration = mean(x[["duration"]][["value"]], na.rm = TRUE),
+          distance = mean(x[["distance"]][["value"]], na.rm = TRUE)
+        )
+        
+      }
+      ) %>% bind_rows()
+      
+      , stringsAsFactors = FALSE)
+    
+    return(drv_dist_df)
     
   }
   
-  drv_dist_df <- data.frame(
-    
-    origin = drv_dist$origin_addresses,
-    destination = drv_dist$destination_addresses,
-    
-    lapply(distance_elements(drv_dist), function(x) {
-      
-      data.frame(
-        duration = mean(x[["duration"]][["value"]], na.rm = TRUE),
-        distance = mean(x[["distance"]][["value"]], na.rm = TRUE)
-      )
-      
-    }
-    ) %>% bind_rows()
-    
-    , stringsAsFactors = FALSE)
+  #!! Take care, if travel time by car cannot be calculated as the place is not reachable by car
+  #!! then the traval time by public transport is being calculated. For this, the time now is used
+  #!! this means that if at the time when this script is run there are no train connections, then the 
+  #!! travel times will be incorrect.
   
-  return(drv_dist_df)
   
-}
-
-#!! Take care, if travel time by car cannot be calculated as the place is not reachable by car
-#!! then the traval time by public transport is being calculated. For this, the time now is used
-#!! this means that if at the time when this script is run there are no train connections, then the 
-#!! travel times will be incorrect.
-
-
-# Save the coordinates of the Medstat regions as well of the center in a list
-
-cent_distances <- list()
-
-cent_distances[["MS_lat_lon"]] <- dist_cent %>% 
-  select(lat_MS, lon_MS) %>% 
-  split(seq(nrow(.))) %>% 
-  set_names(dist_cent$MedStat) %>% 
-  map(unlist)
-
-cent_distances[["cent_lat_lon"]] <- dist_cent %>% 
-  select(lat_cent, lon_cent) %>% 
-  split(seq(nrow(.))) %>% 
-  set_names(dist_cent$MedStat) %>% 
-  map(unlist)
-
-
-# Calculate the distances using the coordinates
-
-pb <- progress_estimated(length(cent_distances[["MS_lat_lon"]]))
-
-drv_dist_cent <- map2_dfr(
-  cent_distances[["MS_lat_lon"]], 
-  cent_distances[["cent_lat_lon"]], 
-  google_distance_delayed) %>% 
+  # Save the coordinates of the Medstat regions as well of the center in a list
   
-  mutate(duration_min = duration / 60, distance_km = distance / 1000)
-
-save(drv_dist_cent, file = file.path("workspace", "drv_dist_centers.RData"))
-
+  cent_distances <- list()
+  
+  cent_distances[["MS_lat_lon"]] <- dist_cent %>% 
+    select(lat_MS, lon_MS) %>% 
+    split(seq(nrow(.))) %>% 
+    set_names(dist_cent$MedStat) %>% 
+    map(unlist)
+  
+  cent_distances[["cent_lat_lon"]] <- dist_cent %>% 
+    select(lat_cent, lon_cent) %>% 
+    split(seq(nrow(.))) %>% 
+    set_names(dist_cent$MedStat) %>% 
+    map(unlist)
+  
+  
+  # Calculate the distances using the coordinates
+  
+  pb <- progress_estimated(length(cent_distances[["MS_lat_lon"]]))
+  
+  drv_dist_cent <- map2_dfr(
+    cent_distances[["MS_lat_lon"]], 
+    cent_distances[["cent_lat_lon"]], 
+    google_distance_delayed) %>% 
+    
+    mutate(duration_min = duration / 60, distance_km = distance / 1000)
+  
+  save(drv_dist_cent, file = file.path("workspace", "drv_dist_centers.RData"))
+  
 }
 
 load(file.path("workspace", "drv_dist_centers.RData"))
@@ -342,25 +342,106 @@ spatial_vars <- st_read(file.path("data", "MedStat_GIS", "MedStat_Base_2011_regi
 
 
 
-# Degurba -----------------------------------------------------------------
+# Degree of urbanization -----------------------------------------------------------------
 
 # https://ec.europa.eu/eurostat/de/web/gisco/geodata/reference-data/population-distribution-demography/degurba
 
-degurba <- st_read(file.path("data", "Degurba", "DGURBA_2018_01M.shp"), 
-                        as_tibble = TRUE, options = "ENCODING=WINDOWS-1252",
-                        stringsAsFactors = FALSE)
+# There is newer information from 2018, however it is lacking a few regions
 
-degurba_CH <- degurba %>% 
-  filter(str_detect(NUTS, "CH"))
+degurba_Europe_18 <- st_read(file.path("data", "degurba_2018", "DGURBA_2018_01M.shp"),
+                             as_tibble = TRUE, options = "ENCODING=UTF-8",
+                             stringsAsFactors = FALSE)
 
+degurba_CH_18 <- degurba_Europe_18 %>% filter(str_detect(NUTS, "CH"))
 
-
-
-
-
-
-
-
+medstat_missing_degurba_18 <- st_transform(degurba_CH_18, st_crs(coordinates.sp)) %>% 
+  st_contains(coordinates.sp) %>% 
+  as_tibble() %>% 
+  right_join(tibble(medstat = 1:705), by = c("col.id" = "medstat")) %>% 
+  filter(is.na(row.id)) %>% pull(col.id) %>% coordinates.sp[.,] %>% pull(MedStat)
 
 
+# Identification of missing degurba informatiion for medstat regions
 
+mapview(list(degurba_CH_18, coordinates.sp %>% filter(MedStat %in% medstat_missing_degurba_18)),
+        layer.name = c("degurba", "missing Medstats"))
+
+
+# The older information seems to be more complete
+
+
+degurba_Europe_14 <- st_read(file.path("data", "degurba_2014", "DGURBA_RG_01M_2014.shp"), 
+                             as_tibble = TRUE, options = "ENCODING=UTF-8",
+                             stringsAsFactors = FALSE)
+
+
+degurba_CH_14 <- degurba_Europe_14 %>% filter(str_detect(CNTR_CODE, "CH"))
+
+medstat_missing_degurba_14 <- st_transform(degurba_CH_14, st_crs(coordinates.sp)) %>% 
+  st_contains(coordinates.sp) %>% 
+  as_tibble() %>% 
+  right_join(tibble(medstat = 1:705), by = c("col.id" = "medstat")) %>% 
+  filter(is.na(row.id)) %>% pull(col.id) %>% coordinates.sp[.,] %>% pull(MedStat)
+
+
+
+# The coordinates of the regions AG27 and TG13 seem to be shifted to only a little bit too far
+# north. We have to move the coordinates a bit so that they fall into the degurba polygons
+
+mapview(list(degurba_CH_14, coordinates.sp %>% filter(MedStat %in% medstat_missing_degurba_14)),
+        layer.name = c("degurba", "missing Medstats"))
+
+
+# AG27: POINT (673700 269100)
+st_geometry(coordinates.sp[coordinates.sp$MedStat == "AG27", ]) <- st_sfc(st_point(c(673700 , 269100 - 100)))
+
+# TG13: POINT (698400 282900)
+st_geometry(coordinates.sp[coordinates.sp$MedStat == "TG13", ]) <- st_sfc(st_point(c(698400 , 282900 - 100)))
+
+mapview(list(degurba_CH_14, coordinates.sp %>% filter(MedStat %in% medstat_missing_degurba_14)),
+        layer.name = c("degurba", "missing Medstats"))
+
+
+
+# Now we see in what degurba polygons the coordinates fall to derive the degree of urbanization
+
+matched_regions <- st_transform(degurba_CH_14, st_crs(coordinates.sp)) %>% 
+  st_contains(coordinates.sp) %>% 
+  as_tibble() %>% 
+  rename(rows_degurba = "row.id", rows_coordinates_ms = "col.id")
+
+
+# Here we get the degurba classification for each region
+
+degurba <- bind_cols(
+  coordinates.sp[matched_regions$rows_coordinates_ms,], 
+  degurba_CH_14[matched_regions$rows_degurba,]) %>% 
+  arrange(MedStat) %>% 
+  select(MedStat, DGURBA_CLA) %>% 
+  mutate(degurba = fct_recode(as.factor(DGURBA_CLA), urban = "1", suburban = "2", rural = "3"))
+
+
+# Now we compare the old degree of urbanization classification with the newer one
+
+degurba_old <- read.csv2(file.path("data", "Urbanity_Lang_SwiSCI12.csv"), stringsAsFactors = F) %>% 
+  mutate(degurba_old = fct_recode(as.factor(DegreeUrban), urban = "City", suburban = "Agglomeration", rural = "Rural area"))
+
+left_join(degurba, select(degurba_old, MedStat, degurba_old), by = "MedStat") %>% 
+  mutate(diff_dgurb = if_else(as.character(degurba) != as.character(degurba_old), 1, 0)) %>% 
+  mutate(my_legend = if_else(diff_dgurb == 1, str_c(MedStat, degurba , "<-", degurba_old, sep = " "), as.character(degurba))) %>% 
+  mapview(zcol = "degurba", label = .$my_legend)
+
+spatial_vars <- left_join(spatial_vars, select(degurba, MedStat, degurba), by = c("MEDSTAT04" = "MedStat"))
+
+spatial_vars <- select(spatial_vars, -geometry)
+
+save(spatial_vars, file = file.path("workspace", "spatial_vars.RData"))
+
+rm("cent_addresses", "cent_addresses.sp", "cent_coordinates", 
+  "coordinates.sp", "crs_MS_spdf", "degurba", "degurba_CH_14", 
+  "degurba_CH_18", "degurba_Europe_14", "degurba_Europe_18", "degurba_old", 
+  "dist_cent", "driving_times", "drv_dist_cent", "FL00", "get_pop_centroids", 
+  "intersects", "lang_reg", "lang_reg_sp", "matched_regions", "medstat_missing_degurba_14", 
+  "medstat_missing_degurba_18", "MS_coordinates", "MS_coordinates_cent", 
+  "MS_spdf", "my_coordinates", "n_rows_cent", "n_rows_MS", "pop_hectare", 
+  "pop_hectare_sp", "SCI_centers", "spatial_vars")

@@ -71,17 +71,34 @@ rm(swisci_12, swisci_17, extra_cols, extra_col_names, n_cols, n_rows)
 
 
 
-
-
 # Repair identical categories with different names ------------------------
+
+to_factor <- c("sex", "sci_type", "sci_degree", "sci_cause_type", "ef_finances", "ef_short_transport", "ef_long_transport")
+
+
+levels(sci$ef_finances)
+
+sci <- mutate_at(sci, to_factor, as.factor)
+
+ef_levels <- c(
+  "had no influence" = "no influence", 
+  "had no influence" = "not applicable",
+  "made my life a bit more difficult" = "made my life a little harder",
+  "made my life a lot more difficult" = "made my life a lot harder"
+  )
+
 
 sci <- mutate(sci, 
               sci_degree = str_remove(sci_degree, " lesion"),
-              sci_cause_type = str_remove(sci_cause_type, " sci"),
-              ef_finances = str_replace_all(ef_finances, c(
-                "^no influence" = "had no influence",
-                "made my life a little harder" = "made my life a bit more difficult",
-                "made my life a lot harder" = "made my life a lot more difficult")))
+              
+              sci_cause_type = str_remove(sci_cause_type, " sci"), 
+              
+              ef_finances = fct_recode(ef_finances, !!!ef_levels),
+              
+              ef_short_transport = fct_recode(ef_short_transport, !!!ef_levels),
+              
+              ef_long_transport = fct_recode(ef_long_transport, !!!ef_levels))
+
 
 
 # There are still different variables
@@ -170,6 +187,11 @@ sci <- sci %>%
 
 # Recode inpatient hospitalizations ---------------------------------------
 
+
+vars_inpatient_paracenter <- names(sci) %>% str_subset("inpat") %>% str_subset("paracenter")
+
+sci[vars_inpatient_paracenter]
+
 sci <- sci %>% 
   mutate_at(vars(starts_with("hc_inpatient")), ~if_else(. %in% c("777", "888", "999", "unknown"), NA_character_, .)) %>% 
   mutate_at(vars(starts_with("hc_inpatient")), ~as.integer(.)) %>% 
@@ -183,7 +205,15 @@ sci <- sci %>%
   mutate_at(vars(starts_with("hc_inpatient")), ~if_else(is.na(hc_inpatient) & is.na(hc_inpatient_num) & is.na(hc_inpatient_days), 0L, .)) %>% 
   
   # We recode the number of inpatient visits and stays as 0 if there hasn't been indicated that there were any visits at all
-  mutate_at(vars(hc_inpatient_num, hc_inpatient_days), ~if_else(hc_inpatient %in% 0L, 0L, .))
+  mutate_at(vars(hc_inpatient_num, hc_inpatient_days), ~if_else(hc_inpatient %in% 0L, 0L, .)) %>% 
+  
+  # Change no ambulant visits to ambulant visits if somebody indicated that they had an ambulant visit at an SCI center
+  mutate(hc_inpatient = if_else(select(., vars_inpatient_paracenter) %>% rowSums(na.rm = T) > 0L, 1L, hc_inpatient))
+
+
+table(sci$hc_inpatient, useNA = "always")
+
+
 
 
 # Recode outpatient hospitalizations --------------------------------------
@@ -217,9 +247,10 @@ sci <- sci %>%
   # create new variable -> total number of ambulant visits
   mutate(hc_ambulant_num = select(., c(hc_ambulant_planned_num, hc_ambulant_unplanned_num )) %>% rowSums(na.rm = TRUE),
          hc_ambulant_num = as.integer(hc_ambulant_num)) %>% 
-
+  
   # Change no ambulant visits to ambulant visits if somebody indicated that they had an ambulant visit at an SCI center
   mutate(hc_ambulant = if_else(select(., vars_ambulant_paracenter) %>% rowSums(na.rm = T) > 0L, 1L, hc_ambulant))
+
 
 
 # Rename variables
@@ -229,6 +260,8 @@ sci <- sci %>% select(id_swisci, tp, sex, age, time_since_sci,
                       completeness = sci_degree, 
                       etiology = sci_cause_type,
                       financial_hardship = ef_finances,
+                      short_transp_barr = ef_short_transport,
+                      long_transp_barr = ef_long_transport,
                       {str_subset(names(.), "^hc") %>% sort()}, 
                       module_hcu_12,
                       medstat)
@@ -236,23 +269,35 @@ sci <- sci %>% select(id_swisci, tp, sex, age, time_since_sci,
 
 # Change character variables to factors
 
-to_factor <- c("sex", "lesion_level", "completeness", "etiology", "financial_hardship")
-sci <- mutate_at(sci, to_factor, as.factor)
+ef_order <- c(
+  "had no influence", 
+  "made my life a bit more difficult", 
+  "made my life a lot more difficult"
+)
 
 sci <- sci %>% 
   
   mutate(
     tp = fct_relevel(tp, c("ts1", "ts2")),
+    
     sex = fct_relevel(sex, c("male", "female")),
+    
     lesion_level = fct_relevel(lesion_level, c("paraplegia", "tetraplegia")),
+    
     completeness = fct_relevel(completeness, c("incomplete", "complete")),
+    
     etiology = fct_relevel(etiology, c("traumatic", "nontraumatic")),
-    financial_hardship = fct_relevel(financial_hardship, c("not applicable", "had no influence", 
-                                                           "made my life a bit more difficult", 
-                                                           "made my life a lot more difficult"))) %>% 
+    
+    financial_hardship = fct_relevel(financial_hardship, !!!ef_order),
+    
+    short_transp_barr = fct_relevel(short_transp_barr, !!!ef_order),
+    
+    long_transp_barr = fct_relevel(long_transp_barr, !!!ef_order)) %>% 
+  
+  mutate_if(is.factor, fct_drop) %>% 
+  
   arrange(tp, as.numeric(id_swisci))
-
-
+  
 
 
 # Make numeric variables numeric ------------------------------------------
@@ -264,4 +309,5 @@ sci <- sci %>% mutate_at(vars(age, time_since_sci), as.numeric)
 
 save(sci, file = file.path("workspace", "raw_data.Rdata"))
 
-rm("calc_row_sum", "ids_hcu", "sci", "to_factor")
+rm("calc_row_sum", "ef_levels", "ef_order", "ids_hcu", "sci", 
+  "to_factor", "vars_ambulant_paracenter", "vars_inpatient_paracenter")

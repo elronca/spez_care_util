@@ -12,6 +12,18 @@ sci %>%
   replace_with_na(replace = list(medstat = "")) %>% 
   miss_var_summary() %>% 
   filter(variable == "medstat")
+
+
+swisci_id_missing_medstat <- sci %>% 
+  filter(tp == "ts2") %>% 
+  replace_with_na(replace = list(medstat = "")) %>% 
+  filter(is.na(medstat)) %>% 
+  select(id_swisci, medstat) %>% 
+  pull(id_swisci)
+
+write.csv2(swisci_id_missing_medstat, file.path("output", "missing_medstat.csv"))
+
+
   
 miss_var_summary(sci) %>% filter(!str_detect(variable, "hc_"))
 

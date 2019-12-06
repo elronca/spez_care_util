@@ -159,6 +159,7 @@ all_vars %>% select("ts1_income_household")
 
 my_vars_all <- c("id_swisci", "sex", "age_quest_admin", "sci_type", "sci_degree", 
                  "time_since_sci", "sci_cause_type", "medstat", "ef_finances",
+                 # "ef_short_transport", "ef_long_transport",
                  
                  "hcu_practitioner_check", "hcu_practitioner_acute", "hcu_inpatient",
                  "hcu_inpatient_num", "hcu_inpatient_days", "hcu_ambulant",
@@ -167,6 +168,7 @@ my_vars_all <- c("id_swisci", "sex", "age_quest_admin", "sci_type", "sci_degree"
 )
 
 my_cat_vars <- c("sex", "sci_type", "sci_degree", "sci_cause_type", "ef_finances", 
+                 # "ef_short_transport", "ef_long_transport",
                  "hcu_inpatient","hcu_ambulant", "hcu_adm_unplanned", "hcu_adm_planned")
 
 my_num_vars <- c("age_quest_admin", "time_since_sci", "hcu_practitioner_check", "hcu_practitioner_acute", 
@@ -185,7 +187,23 @@ swisci_12 <- load_swisci_data(path_ds = file.path("data", "2019-C-006_2012__2019
                               cat_vars = my_cat_vars,
                               codebook = cb_12)
 
+# Load additional variables (numeric vars are obligatory -> problem, needs to be solved, as well, medstat needs to be there)
+
+str_subset(dir("data"), "2018")
+
+swisci_12_add <- load_swisci_data(path_ds = file.path("data", "2018-C-006_2019_02_27.csv"),
+                              tp = "ts1",
+                              all_vars = c("id_swisci", "ef_short_transport", "ef_long_transport", "age_quest_admin", "medstat"),
+                              num_vars = "age_quest_admin",
+                              cat_vars = c("ef_short_transport", "ef_long_transport"),
+                              codebook = cb_12)
+
+
+swisci_12 <- left_join(swisci_12, select(swisci_12_add, id_swisci, ef_short_transport, ef_long_transport), by = "id_swisci")
+
 rm(cb_12, my_vars_all, my_num_vars, my_cat_vars)
+
+
 
 
 # Load and relabel swisci data of 2017 ------------------------------------------------
@@ -245,6 +263,19 @@ swisci_17 <- load_swisci_data(path_ds = file.path("data", "2019-C-006_2017__2019
                               codebook = cb_17)
 
 
+str_subset(dir("data"), "2018")
+
+swisci_17_add <- load_swisci_data(path_ds = file.path("data", "2018-C-006_Fragebogen2_2019_02_27.csv"),
+                                  tp = "ts2",
+                                  all_vars = c("id_swisci", "ef_short_transport", "ef_long_transport", "age_quest", "medstat"),
+                                  num_vars = "age_quest",
+                                  cat_vars = c("ef_short_transport", "ef_long_transport"),
+                                  codebook = cb_17)
+
+
+swisci_17 <- left_join(swisci_17, select(swisci_17_add, id_swisci, ef_short_transport, ef_long_transport), by = "id_swisci")
+
+
 ## Recode binary variables
 
 swisci_12 <- swisci_12 %>% 
@@ -265,4 +296,4 @@ save(swisci_12, file = file.path("workspace", "swisci_12_raw.RData"))
 save(swisci_17, file = file.path("workspace", "swisci_17_raw.RData"))
 
 rm("cb_17", "fread", "load_swisci_data", "my_cat_vars", "my_num_vars", 
-  "my_vars_all", "swisci_12", "swisci_17")
+  "my_vars_all", "swisci_12", "swisci_17", "swisci_12_add", "swisci_17_add")

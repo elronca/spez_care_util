@@ -99,6 +99,8 @@ get_bt_discrete_vars <- function(df, .tp = "ts1", vars_to_remove = "tp", vars_to
 
 ## Get table one for all participants
 
+names(sci)
+
 table_2012 <- get_bt_discrete_vars(sci, vars_to_remove_missings = c("lesion_level", "etiology"))
 table_2017 <- get_bt_discrete_vars(sci, .tp = "ts2", vars_to_remove_missings = c("lesion_level", "etiology"))
 
