@@ -2,7 +2,9 @@
 
 # Harmonize data of 2012 and 2017
 
+library(magrittr)
 library(tidyverse)
+
 Sys.setenv(LANGUAGE = 'en')
 
 load(file.path("workspace", "swisci_12_raw.RData"))
@@ -73,10 +75,9 @@ rm(swisci_12, swisci_17, extra_cols, extra_col_names, n_cols, n_rows)
 
 # Repair identical categories with different names ------------------------
 
-to_factor <- c("sex", "sci_type", "sci_degree", "sci_cause_type", "ef_finances", "ef_short_transport", "ef_long_transport")
+names(sci) %>% str_subset("scim")
 
-
-levels(sci$ef_finances)
+to_factor <- c("sex", "sci_type", "sci_degree", "sci_cause_type", "ef_finances", "ef_short_transport", "ef_long_transport", "scim_20")
 
 sci <- mutate_at(sci, to_factor, as.factor)
 
@@ -86,6 +87,30 @@ ef_levels <- c(
   "made my life a bit more difficult" = "made my life a little harder",
   "made my life a lot more difficult" = "made my life a lot harder"
   )
+
+recode_scim <- c(
+  "I need total assistance" = "1",
+  "I need an electric wheelchair or partial assistance to operate a manual wheelchair" = "2", 
+  "I am independent in a manual wheelchair" = "3",
+  "need supervision while walking (with or without walking aids)" = "4",
+  "walk with a walking frame or crutches, swinging forward with both feet at a time" = "5",
+  "walk with crutches or two canes, setting one foot before the other" = "6",
+  "walk with one cane" = "7",
+  "walk with a leg orthosis(es) only (e.g., leg splint)" = "8",
+  "walk without walking aids" = "9")
+
+recode_scim_2 <- c(
+  electric_wheelchair = "I need total assistance",
+  electric_wheelchair = "I need an electric wheelchair or partial assistance to operate a manual wheelchair", 
+  manual_wheekchair = "I am independent in a manual wheelchair",
+  manual_wheekchair = "need supervision while walking (with or without walking aids)",
+  walking_independently = "walk with a walking frame or crutches, swinging forward with both feet at a time",
+  walking_independently = "walk with crutches or two canes, setting one foot before the other",
+  walking_independently = "walk with one cane",
+  walking_freely = "walk with a leg orthosis(es) only (e.g., leg splint)",
+  walking_freely = "walk without walking aids")
+
+
 
 
 sci <- mutate(sci, 
@@ -97,8 +122,14 @@ sci <- mutate(sci,
               
               ef_short_transport = fct_recode(ef_short_transport, !!!ef_levels),
               
-              ef_long_transport = fct_recode(ef_long_transport, !!!ef_levels))
+              ef_long_transport = fct_recode(ef_long_transport, !!!ef_levels),
+              
+              scim_20 = fct_recode(scim_20, !!!recode_scim),
+              
+              amb_status = fct_recode(scim_20, !!!recode_scim_2))
 
+count(sci, scim_20)
+table(sci$amb_status, useNA = "always")
 
 
 # There are still different variables
@@ -122,8 +153,6 @@ if(F) {
 
 
 # Harmonize the differently coded utilization variables in 2012 and 2017 --------------------------
-
-
 
 calc_row_sum <- function(df, sum_var_1, sum_var_2, res_sum_vars, res_sum_vars_dic) {
   
@@ -168,8 +197,11 @@ sci <- calc_row_sum(sci, "hc_paraplegic_check", "hc_paraplegic_acute", "hc_parap
 
 # Recode paracenter utilization -------------------------------------------
 
+table(sci$hc_paracenter, useNA = "always")
+
 sci <- sci %>% 
   mutate_at(vars(starts_with("hc_paracenter")), ~if_else(. %in% c("777", "888", "999", "unknown"), NA_character_, .)) %>% 
+  
   mutate_at(vars(starts_with("hc_paracenter")), ~as.integer(.)) %>% 
   
   # If all specific paracenter variables are NA and if the hc_paracenter is not 1 then hc_paracenter becomes 0 
@@ -184,6 +216,8 @@ sci <- sci %>%
   # If somebody indicated not to have utilized any paracenter services then all specific paracenter services will be coded as 0
   mutate_at(vars(starts_with("hc_paracenter_")), ~if_else(hc_paracenter %in% 0L, 0L, .))
 
+table(sci$hc_paracenter, useNA = "always")
+
 
 # Recode inpatient hospitalizations ---------------------------------------
 
@@ -191,12 +225,13 @@ sci <- sci %>%
 vars_inpatient_paracenter <- names(sci) %>% str_subset("inpat") %>% str_subset("paracenter")
 
 sci[vars_inpatient_paracenter]
+table(sci$hc_inpatient, useNA = "always")
 
 sci <- sci %>% 
   mutate_at(vars(starts_with("hc_inpatient")), ~if_else(. %in% c("777", "888", "999", "unknown"), NA_character_, .)) %>% 
   mutate_at(vars(starts_with("hc_inpatient")), ~as.integer(.)) %>% 
   
-  # If we have a NA in nc_inpatient but not in hc_inpatient_num/days and also there are no zeros indicated in these variables, 
+  # If we have a NA in hc_inpatient but not in hc_inpatient_num/days and also there are no zeros indicated in these variables, 
   # then we recode this variable to be 1
   
   mutate(hc_inpatient = if_else(is.na(hc_inpatient) & all(is.na(na_if(select(., hc_inpatient_num, hc_inpatient_days), 0))), 1L, hc_inpatient)) %>% 
@@ -210,7 +245,7 @@ sci <- sci %>%
   # Change no ambulant visits to ambulant visits if somebody indicated that they had an ambulant visit at an SCI center
   mutate(hc_inpatient = if_else(select(., vars_inpatient_paracenter) %>% rowSums(na.rm = T) > 0L, 1L, hc_inpatient))
 
-
+sci[c("hc_inpatient", vars_inpatient_paracenter)]
 table(sci$hc_inpatient, useNA = "always")
 
 
@@ -223,6 +258,7 @@ sci %>% select(starts_with("hc_ambulant"))
 vars_ambulant_paracenter <- names(sci) %>% str_subset("ambulant") %>% str_subset("paracenter")
 
 sci[vars_ambulant_paracenter]
+table(sci$hc_ambulant, useNA = "always")
 
 sci <- sci %>% 
   mutate_at(vars(starts_with("hc_ambulant")), ~if_else(. %in% c("777", "888", "999", "unknown"), NA_character_, .)) %>% 
@@ -251,6 +287,9 @@ sci <- sci %>%
   # Change no ambulant visits to ambulant visits if somebody indicated that they had an ambulant visit at an SCI center
   mutate(hc_ambulant = if_else(select(., vars_ambulant_paracenter) %>% rowSums(na.rm = T) > 0L, 1L, hc_ambulant))
 
+sci[c("hc_ambulant", vars_ambulant_paracenter)]
+table(sci$hc_ambulant, useNA = "always")
+
 
 
 # Rename variables
@@ -263,8 +302,9 @@ sci <- sci %>% select(id_swisci, tp, sex, age, time_since_sci,
                       short_transp_barr = ef_short_transport,
                       long_transp_barr = ef_long_transport,
                       {str_subset(names(.), "^hc") %>% sort()}, 
+                      amb_status,
                       module_hcu_12,
-                      medstat)
+                      medstat) 
 
 
 # Change character variables to factors
@@ -278,6 +318,7 @@ ef_order <- c(
 sci <- sci %>% 
   
   mutate(
+    
     tp = fct_relevel(tp, c("ts1", "ts2")),
     
     sex = fct_relevel(sex, c("male", "female")),
@@ -292,11 +333,17 @@ sci <- sci %>%
     
     short_transp_barr = fct_relevel(short_transp_barr, !!!ef_order),
     
-    long_transp_barr = fct_relevel(long_transp_barr, !!!ef_order)) %>% 
+    long_transp_barr = fct_relevel(long_transp_barr, !!!ef_order),
+    
+    amb_status = fct_relevel(amb_status, c("walking_freely", "walking_independently", "manual_wheekchair", "electric_wheelchair"))
+    
+    ) %>% 
   
   mutate_if(is.factor, fct_drop) %>% 
   
   arrange(tp, as.numeric(id_swisci))
+
+levels(sci$amb_status)
   
 
 
@@ -310,4 +357,5 @@ sci <- sci %>% mutate_at(vars(age, time_since_sci), as.numeric)
 save(sci, file = file.path("workspace", "raw_data.Rdata"))
 
 rm("calc_row_sum", "ef_levels", "ef_order", "ids_hcu", "sci", 
-  "to_factor", "vars_ambulant_paracenter", "vars_inpatient_paracenter")
+  "to_factor", "vars_ambulant_paracenter", "vars_inpatient_paracenter",
+  "recode_scim", "recode_scim_2")

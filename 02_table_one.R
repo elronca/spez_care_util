@@ -1,6 +1,7 @@
 
 
 library(tidyverse)
+
 Sys.setenv(LANGUAGE = 'en')
 
 load(file.path("workspace", "manually_imputed.Rdata"))
@@ -14,6 +15,8 @@ sci <- mutate(sci, time_since_sci = time_since_sci / 12)
 # Get missings in specific variables
 
 sum(is.na(sci$medstat))
+
+names(sci)
 
 
 # Calculate relative frequencies of categories across discrete variables ---------------------------------------

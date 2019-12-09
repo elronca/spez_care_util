@@ -10,7 +10,7 @@ sci <- filter(sci, tp == "ts2")
 
 sci$time_since_sci_y <- sci$time_since_sci/12
 
-soc_dem_vars <- sci %>% select(id_swisci, sex:long_transp_barr, medstat:etiology) %>% names()
+soc_dem_vars <- sci %>% select(id_swisci, sex:long_transp_barr, medstat:etiology, amb_status) %>% names()
 
 
 # Outpatient clinic visits ------------------------------------------------
@@ -69,7 +69,8 @@ spat_vars_outp <- spatial_vars %>%
 
 amb_ds <- left_join(amb_ds, spat_vars_outp, by = c("medstat" = "MEDSTAT04"))
 
-fit <- glm(amb_spec ~ sex + age + lesion_level + duration_min + language + long_transp_barr, 
+fit <- glm(amb_spec ~ sex + age + lesion_level + duration_min + language + long_transp_barr + 
+             amb_status, 
            data = amb_ds, family = binomial)
 
 summary(fit)
@@ -77,7 +78,8 @@ summary(fit)
 merge(round(exp(coef(fit)), 2), round(exp(confint(fit)), 2), by = "row.names", all = TRUE)
 
 
-fit <- glm(amb_spec ~ sex + ns(age, 4) + lesion_level + completeness + ns(duration_min, 4) + language + long_transp_barr, 
+fit <- glm(amb_spec ~ sex + ns(age, 4) + lesion_level + completeness + ns(duration_min, 4) + 
+             language + long_transp_barr + amb_status, 
            data = amb_ds, family = binomial)
 
 summary(fit)
@@ -102,9 +104,11 @@ sci_check <- left_join(sci, spat_vars_check, by = c("medstat" = "MEDSTAT04"))
 
 check_up_vars <- names(sci_check) %>% str_subset("_check")
 
-sci_check <- sci_check %>% mutate(check_up = if_else(select(., check_up_vars) %>% rowSums(na.rm = T) > 0, 1L, 0L))
+sci_check <- sci_check %>% 
+  mutate(check_up = if_else(select(., check_up_vars) %>% rowSums(na.rm = T) > 0, 1L, 0L))
 
-fit <- glm(check_up ~ sex + ns(age, 2) + lesion_level + completeness + ns(duration_min, 2) + language + long_transp_barr, 
+fit <- glm(check_up ~ sex + ns(age, 2) + lesion_level + completeness + ns(duration_min, 2) + 
+             language + long_transp_barr + amb_status, 
            data = sci_check, family = binomial)
 
 summary(fit)
@@ -116,7 +120,6 @@ eff.dur <- Effect("duration_min", fit)
 
 plot(eff.age)
 plot(eff.dur)
-
 
 
 
@@ -135,8 +138,8 @@ sci_inpat <- left_join(sci, spat_vars_inpat, by = c("medstat" = "MEDSTAT04")) %>
   mutate(inpat_paracenter = if_else(rowSums(select(., ends_with("_inpat")), na.rm = T) > 0L, 1L, 0L))
 
 
-
-fit <- glm(inpat_paracenter ~ sex + ns(age, 2) + lesion_level + ns(duration_min, 2) + language + long_transp_barr, 
+fit <- glm(inpat_paracenter ~ sex + ns(age, 2) + lesion_level + ns(duration_min, 2) + 
+             language + long_transp_barr + amb_status, 
            data = sci_inpat, family = binomial)
 
 summary(fit)
@@ -148,5 +151,3 @@ eff.dur <- Effect("duration_min", fit)
 
 plot(eff.age)
 plot(eff.dur)
-
-

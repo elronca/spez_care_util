@@ -126,6 +126,8 @@ load_swisci_data <- function(path_ds, tp, cat_vars = NULL,  num_vars = NULL, oth
   
   # Loop function over my categorical variables to get those variables labelled
   
+  ds_cat_vars <- NULL
+  
   if( !is.null(cat_vars) ) {
     
     ds_cat_vars <- map_dfc(cat_vars, recode_variables, my_file = my_file, codebook = codebook) %>% 
@@ -134,6 +136,8 @@ load_swisci_data <- function(path_ds, tp, cat_vars = NULL,  num_vars = NULL, oth
     mutate_all(str_to_lower)
     
   }
+  
+  ds_num_vars <- NULL
   
   if( !is.null(num_vars) ) {
     
@@ -145,7 +149,7 @@ load_swisci_data <- function(path_ds, tp, cat_vars = NULL,  num_vars = NULL, oth
   
   # Merge labeled, modified and other variables
   
-  to_merge <- list(cat_vars = ds_cat_vars, num_vars = NULL, other_vars = select(my_file, id_swisci, other_vars))
+  to_merge <- list(cat_vars = ds_cat_vars, num_vars = ds_num_vars, other_vars = select(my_file, id_swisci, other_vars))
   to_merge <- to_merge[map_lgl(to_merge, function(x) ncol(x) > 1 && !is.null(x))]
 
   reduce(to_merge, full_join, by = "id_swisci") %>% 
@@ -231,7 +235,7 @@ swisci_17_add <- load_swisci_data(path_ds = file.path("data", "2018-C-006_Frageb
                                   codebook = cb_17)
 
 
-swisci_17 <- left_join(swisci_17, swisci_17_add, by = "id_swisci")
+swisci_17 <- left_join(swisci_17, swisci_17_add, by = c("id_swisci", "tp"))
 
 
 ## Recode binary variables

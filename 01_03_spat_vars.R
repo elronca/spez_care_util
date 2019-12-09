@@ -32,7 +32,7 @@ MS_spdf <- st_read(file.path("data", "MedStat_GIS", "MedStat_Base_2011_region.sh
 
 # Read number of persons by hectare
 
-pop_hectare <- read_csv2(file.path("data", "STATPOP2012B.csv"))
+pop_hectare <- read_csv2(file.path("data", "STATPOP2012B.csv"), col_types = cols_only(X_KOORD = "d", Y_KOORD = "d", B12BTOT = "i"))
 
 
 # Hectares with 1 to 3 inhabitants are coded with 3 inhabitans for data privacy reasons.
@@ -51,7 +51,7 @@ crs_MS_spdf <- st_crs(MS_spdf)[["proj4string"]]
 # Transform coordinates of persons per hectare file into spatial points using coordinates of Medstat spatial polygon file
 
 pop_hectare_sp <- st_as_sf(x = pop_hectare, coords = c("X_KOORD", "Y_KOORD"), crs = crs_MS_spdf) %>% 
-  select(RELI, B12BTOT, geometry)
+  select(B12BTOT, geometry)
 
 
 # Get a sample of the very large persons per hectare spatial points file
@@ -188,9 +188,6 @@ tail(MS_coordinates)
 
 
 # Combine the medstat and the centers data to prepare a file for the calculation of the driving times
-
-
-
 
 n_rows_MS <- nrow(MS_coordinates)
 n_rows_cent <- nrow(cent_addresses)
@@ -438,10 +435,10 @@ spatial_vars <- select(spatial_vars, -geometry)
 save(spatial_vars, file = file.path("workspace", "spatial_vars.RData"))
 
 rm("cent_addresses", "cent_addresses.sp", "cent_coordinates", 
-  "coordinates.sp", "crs_MS_spdf", "degurba", "degurba_CH_14", 
-  "degurba_CH_18", "degurba_Europe_14", "degurba_Europe_18", "degurba_old", 
-  "dist_cent", "driving_times", "drv_dist_cent", "FL00", "get_pop_centroids", 
-  "intersects", "lang_reg", "lang_reg_sp", "matched_regions", "medstat_missing_degurba_14", 
-  "medstat_missing_degurba_18", "MS_coordinates", "MS_coordinates_cent", 
-  "MS_spdf", "my_coordinates", "n_rows_cent", "n_rows_MS", "pop_hectare", 
-  "pop_hectare_sp", "SCI_centers", "spatial_vars")
+   "coordinates.sp", "crs_MS_spdf", "degurba", "degurba_CH_14", 
+   "degurba_CH_18", "degurba_Europe_14", "degurba_Europe_18", "degurba_old", 
+   "dist_cent", "driving_times", "drv_dist_cent", "FL00", "get_pop_centroids", 
+   "intersects", "lang_reg", "lang_reg_sp", "matched_regions", "medstat_missing_degurba_14", 
+   "medstat_missing_degurba_18", "MS_coordinates", "MS_coordinates_cent", 
+   "MS_spdf", "my_coordinates", "n_rows_cent", "n_rows_MS", "pop_hectare", 
+   "pop_hectare_sp", "SCI_centers", "spatial_vars")
