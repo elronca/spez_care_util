@@ -84,16 +84,20 @@ rm("cb_hsr_12", "cb_st_ba_12", "get_labels_from_codebook")
 
 # Function to load and label swisci data
 
-load_swisci_data <- function(path_ds, tp, all_vars, num_vars, cat_vars, codebook) {
+load_swisci_data <- function(path_ds, tp, cat_vars = NULL,  num_vars = NULL, other_vars = NULL, codebook) {
+  
+
+  # Check whether there are variables to label
+  
+  if(is.null(cat_vars) && is.null(num_vars) && is.null(other_vars)) {
+    stop("there are no variables to compute a baseline table with", call. = FALSE)
+  }
   
   
   # Read dataset, remove prefix (ts_), and change numeric variables to numeric
   
-  my_file <- fread(path_ds, colClasses = 'character', data.table = FALSE) %>% 
-    rename_all(~str_remove(., str_c("^", tp, "_"))) %>% 
-    select(all_vars) %>% 
-    mutate_at(num_vars, as.numeric)
-  
+  my_file <- fread(path_ds, colClasses = 'character', data.table = FALSE, na.strings = c("", "NA")) %>% 
+    rename_all(~str_remove(., str_c("^", tp, "_"))) 
   
   
   recode_variables <- function(my_var_name, my_file, codebook) {
@@ -102,8 +106,8 @@ load_swisci_data <- function(path_ds, tp, all_vars, num_vars, cat_vars, codebook
     # Search all_vars variable in codebook 
     
     my_cb <- filter(codebook, var_name %in% my_var_name) %>% 
+      drop_na(var_label) %>% 
       pivot_wider(names_from = var_name, values_from = var_level)
-    
     
     # Match coding, to find corresponing label in codebook
     
@@ -120,119 +124,77 @@ load_swisci_data <- function(path_ds, tp, all_vars, num_vars, cat_vars, codebook
   }
   
   
-  
   # Loop function over my categorical variables to get those variables labelled
   
-  ds_cat_vars <- map_dfc(cat_vars, recode_variables, my_file = my_file, codebook = codebook) %>% 
+  if( !is.null(cat_vars) ) {
+    
+    ds_cat_vars <- map_dfc(cat_vars, recode_variables, my_file = my_file, codebook = codebook) %>% 
     set_names(cat_vars) %>% 
     add_column(id_swisci = my_file$id_swisci, .before = 1) %>% 
     mutate_all(str_to_lower)
+    
+  }
+  
+  if( !is.null(num_vars) ) {
+    
+    ds_num_vars <- select(my_file, id_swisci, num_vars) %>% 
+      mutate_at(num_vars, as.numeric)
+    
+  }
   
   
-  # Select numeric variables
+  # Merge labeled, modified and other variables
   
-  ds_num_vars <- select(my_file, id_swisci, one_of(num_vars))
-  
-  
-  # Merge categorical and numerical variables and add timepoint (ts1 = 2012 or ts2 = 2017) 
-  
-  full_join(ds_cat_vars, ds_num_vars, by = "id_swisci") %>% 
-    full_join(my_file[, c("id_swisci", "medstat")], by = "id_swisci") %>% 
+  to_merge <- list(cat_vars = ds_cat_vars, num_vars = NULL, other_vars = select(my_file, id_swisci, other_vars))
+  to_merge <- to_merge[map_lgl(to_merge, function(x) ncol(x) > 1 && !is.null(x))]
+
+  reduce(to_merge, full_join, by = "id_swisci") %>% 
     mutate(tp = tp)
-  
+
 }
 
 # Load and relabel swisci data of 2012 ------------------------------------------------
 
-if(FALSE) {# Have a look at all variables
-
-all_vars <- fread(file.path("data", "2019-C-006_2012__2019_10_22.csv"), colClasses = 'character', data.table = FALSE) %>% 
-  as_tibble()
-
-all_vars %>% names()
-all_vars %>% select("ts1_income_household")
-
-}
-
-
-# Select the variables I want
-
-my_vars_all <- c("id_swisci", "sex", "age_quest_admin", "sci_type", "sci_degree", 
-                 "time_since_sci", "sci_cause_type", "medstat", "ef_finances",
-                 # "ef_short_transport", "ef_long_transport",
-                 
-                 "hcu_practitioner_check", "hcu_practitioner_acute", "hcu_inpatient",
-                 "hcu_inpatient_num", "hcu_inpatient_days", "hcu_ambulant",
-                 "hcu_adm_unplanned", "hcu_adm_unplanned_num", "hcu_adm_planned",
-                 "hcu_adm_planned_num", "hcu_paraplegic_check", "hcu_paraplegic_acute"
-)
 
 my_cat_vars <- c("sex", "sci_type", "sci_degree", "sci_cause_type", "ef_finances", 
-                 # "ef_short_transport", "ef_long_transport",
                  "hcu_inpatient","hcu_ambulant", "hcu_adm_unplanned", "hcu_adm_planned")
 
 my_num_vars <- c("age_quest_admin", "time_since_sci", "hcu_practitioner_check", "hcu_practitioner_acute", 
                  "hcu_inpatient_num", "hcu_inpatient_days", "hcu_adm_unplanned_num", "hcu_adm_planned_num",
                  "hcu_paraplegic_check", "hcu_paraplegic_acute")
 
-identical(length(my_vars_all), length(c(my_num_vars, my_cat_vars, "id_swisci", "medstat")))
+my_other_vars <- c("medstat")
 
 
 # Label selected variables
 
 swisci_12 <- load_swisci_data(path_ds = file.path("data", "2019-C-006_2012__2019_10_22.csv"),
                               tp = "ts1",
-                              all_vars = my_vars_all,
-                              num_vars = my_num_vars,
                               cat_vars = my_cat_vars,
+                              num_vars = my_num_vars,
+                              other_vars = my_other_vars,
                               codebook = cb_12)
+
+
 
 # Load additional variables (numeric vars are obligatory -> problem, needs to be solved, as well, medstat needs to be there)
 
-str_subset(dir("data"), "2018")
-
 swisci_12_add <- load_swisci_data(path_ds = file.path("data", "2018-C-006_2019_02_27.csv"),
-                              tp = "ts1",
-                              all_vars = c("id_swisci", "ef_short_transport", "ef_long_transport", "age_quest_admin", "medstat"),
-                              num_vars = "age_quest_admin",
-                              cat_vars = c("ef_short_transport", "ef_long_transport"),
-                              codebook = cb_12)
+                                  tp = "ts1",
+                                  cat_vars = c("ef_short_transport", "ef_long_transport"),
+                                  other_vars = "scim_20",
+                                  codebook = cb_12)
 
 
-swisci_12 <- left_join(swisci_12, select(swisci_12_add, id_swisci, ef_short_transport, ef_long_transport), by = "id_swisci")
+swisci_12 <- left_join(swisci_12, swisci_12_add, by = c("id_swisci", "tp"))
 
-rm(cb_12, my_vars_all, my_num_vars, my_cat_vars)
+rm(cb_12, my_cat_vars, my_num_vars, my_other_vars, swisci_12_add)
 
 
 
 
 # Load and relabel swisci data of 2017 ------------------------------------------------
 
-
-if(FALSE) {# Have a look at all variables
-  
-  all_vars <- fread(file.path("data", "2019-C-006_2017__2019_10_23.csv"), colClasses = 'character', data.table = FALSE)
-  all_vars %>% names()
-  all_vars %>% select("ts2_income_household")
-  
-}
-
-
-my_vars_all <- c("id_swisci", "sex", "age_quest", "sci_type", "sci_degree", 
-                 "time_since_sci", "sci_cause_type", "medstat", "ef_finances", 
-                 "hc_practitioner", "hc_practitioner_num", 
-                 "hc_paraplegic", "hc_paraplegic_num",
-                 "hc_inpatient", "hc_inpatient_num", "hc_inpatient_days",
-                 
-                 "hc_ambulant", "hc_ambulant_unplanned", "hc_ambulant_unplanned_num",
-                 "hc_ambulant_planned", "hc_ambulant_planned_num", 
-                 "hc_paracenter",
-                 "hc_paracenter_1_check", "hc_paracenter_2_check", "hc_paracenter_3_check",
-                 "hc_paracenter_4_check", "hc_paracenter_5_check", "hc_paracenter_6_check",
-                 "hc_paracenter_1_ambulant", "hc_paracenter_2_ambulant", "hc_paracenter_3_ambulant",
-                 "hc_paracenter_4_ambulant", "hc_paracenter_5_ambulant","hc_paracenter_6_ambulant",
-                 "hc_paracenter_1_inpat", "hc_paracenter_2_inpat", "hc_paracenter_3_inpat",
-                 "hc_paracenter_4_inpat", "hc_paracenter_5_inpat", "hc_paracenter_6_inpat")
 
 my_cat_vars <- c("sex", "sci_type", "sci_degree", "sci_cause_type", "ef_finances",
                  "hc_practitioner", "hc_paraplegic", "hc_inpatient","hc_ambulant", 
@@ -251,29 +213,25 @@ my_num_vars <- c("age_quest", "time_since_sci",
                  "hc_inpatient_days", "hc_ambulant_unplanned_num",
                  "hc_ambulant_planned_num")
 
-identical(length(my_vars_all), length(c(my_num_vars, my_cat_vars, "id_swisci", "medstat")))
-
+my_other_vars <- c("medstat")
 
 
 swisci_17 <- load_swisci_data(path_ds = file.path("data", "2019-C-006_2017__2019_10_23.csv"),
                               tp = "ts2",
-                              all_vars = my_vars_all,
-                              num_vars = my_num_vars,
                               cat_vars = my_cat_vars,
+                              num_vars = my_num_vars,
+                              other_vars = my_other_vars,
                               codebook = cb_17)
 
 
-str_subset(dir("data"), "2018")
-
 swisci_17_add <- load_swisci_data(path_ds = file.path("data", "2018-C-006_Fragebogen2_2019_02_27.csv"),
                                   tp = "ts2",
-                                  all_vars = c("id_swisci", "ef_short_transport", "ef_long_transport", "age_quest", "medstat"),
-                                  num_vars = "age_quest",
                                   cat_vars = c("ef_short_transport", "ef_long_transport"),
+                                  other_vars = "scim_20",
                                   codebook = cb_17)
 
 
-swisci_17 <- left_join(swisci_17, select(swisci_17_add, id_swisci, ef_short_transport, ef_long_transport), by = "id_swisci")
+swisci_17 <- left_join(swisci_17, swisci_17_add, by = "id_swisci")
 
 
 ## Recode binary variables
@@ -296,4 +254,4 @@ save(swisci_12, file = file.path("workspace", "swisci_12_raw.RData"))
 save(swisci_17, file = file.path("workspace", "swisci_17_raw.RData"))
 
 rm("cb_17", "fread", "load_swisci_data", "my_cat_vars", "my_num_vars", 
-  "my_vars_all", "swisci_12", "swisci_17", "swisci_12_add", "swisci_17_add")
+   "my_other_vars", "swisci_12", "swisci_17", "swisci_17_add")
