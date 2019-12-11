@@ -5,6 +5,15 @@ library(readxl)
 fread <- data.table::fread
 
 
+
+# Read all data to get the variables --------------------------------------
+
+dir("data") %>% str_subset("2019") %>% str_subset("C-006")
+
+swisci_12_vars <- names(fread("data/2019-C-006_2012__2019_10_22.csv", nrows = 1))
+swisci_17_vars <- names(fread("data/2019-C-006_2017__2019_10_23.csv", nrows = 1))
+
+
 # Make codebooks useable to label variables -------------------------------
 
 get_labels_from_codebook <- function(path_cb, my_sheet, my_col_types) {
@@ -159,7 +168,6 @@ load_swisci_data <- function(path_ds, tp, cat_vars = NULL,  num_vars = NULL, oth
 
 # Load and relabel swisci data of 2012 ------------------------------------------------
 
-
 my_cat_vars <- c("sex", "sci_type", "sci_degree", "sci_cause_type", "ef_finances", 
                  "hcu_inpatient","hcu_ambulant", "hcu_adm_unplanned", "hcu_adm_planned")
 
@@ -200,7 +208,7 @@ rm(cb_12, my_cat_vars, my_num_vars, my_other_vars, swisci_12_add)
 # Load and relabel swisci data of 2017 ------------------------------------------------
 
 
-my_cat_vars <- c("sex", "sci_type", "sci_degree", "sci_cause_type", "ef_finances",
+my_cat_vars <- c("sex", "sci_type", "sci_degree", "sci_cause_type", "ef_finances", "survey1",
                  "hc_practitioner", "hc_paraplegic", "hc_inpatient","hc_ambulant", 
                  "hc_ambulant_unplanned", "hc_ambulant_planned",
                  "hc_paracenter",
@@ -217,7 +225,14 @@ my_num_vars <- c("age_quest", "time_since_sci",
                  "hc_inpatient_days", "hc_ambulant_unplanned_num",
                  "hc_ambulant_planned_num")
 
-my_other_vars <- c("medstat")
+sec_health_cond <- swisci_17_vars %>% 
+  str_subset("_problem_") %>% 
+  str_subset("_treat", negate = TRUE) %>% 
+  str_subset("_other", negate = TRUE) %>% 
+  str_remove("ts2_")
+
+
+my_other_vars <- c("medstat", sec_health_cond)
 
 
 swisci_17 <- load_swisci_data(path_ds = file.path("data", "2019-C-006_2017__2019_10_23.csv"),
@@ -258,4 +273,5 @@ save(swisci_12, file = file.path("workspace", "swisci_12_raw.RData"))
 save(swisci_17, file = file.path("workspace", "swisci_17_raw.RData"))
 
 rm("cb_17", "fread", "load_swisci_data", "my_cat_vars", "my_num_vars", 
-   "my_other_vars", "swisci_12", "swisci_17", "swisci_17_add")
+  "my_other_vars", "sec_health_cond", "swisci_12", "swisci_12_vars", 
+  "swisci_17", "swisci_17_add", "swisci_17_vars")

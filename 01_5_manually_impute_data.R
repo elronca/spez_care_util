@@ -4,46 +4,16 @@
 library(tidyverse)
 library(naniar)
 
-load(file.path("workspace", "raw_data.Rdata"))
-
-
-# This person mentioned inpatient days but the number is 0, we recode it as being 1
-
-sci %>% filter(hc_inpatient_days > 0 & hc_inpatient_num == 0) %>% 
-  select(id_swisci, tp, starts_with("hc_inpatient"))
-
-sci <- mutate(sci, hc_inpatient_num = if_else(id_swisci == "507163" & tp == "ts1", 1L, hc_inpatient_num))
-
-
-# Visits to specialist clinics
-
-sci <- sci %>% 
-  rename_at(vars(starts_with("hc_paracenter"), -hc_paracenter), ~str_replace_all(., c("1" = "Balgrist",
-                                                                                      "2" = "RehaB",
-                                                                                      "3" = "CRR",
-                                                                                      "4" = "SPZ",
-                                                                                      "5" = "Plein_Soleil",
-                                                                                      "6" = "Bellinzona")))
+load( file.path("workspace", "variables_modified.Rdata"))
 
 
 
+# Check missings ----------------------------------------------------------
 
-# We use data of individuals who did not participate in 2012 to impute data for individuals in 2017
-
-
-# Get instances where empty strings represent missing values
-
-map_int(sci, ~sum(. %in% "")) %>% .[. > 1]
-
-
-# Replace empty strings with NA
-
-sci <- sci %>% mutate(medstat = if_else(medstat %in% "", NA_character_, medstat))
-  
-
-# Check missings
-
-miss_var_summary(sci) %>% filter(!str_detect(variable, "hc_"))
+filter(sci, tp == "ts2") %>% 
+  miss_var_summary() %>% 
+  filter(!str_detect(variable, "hc_")) %>% 
+  print(n = 50)
 
 
 # Impute data by last observation carried backwards and forward within same participant
@@ -76,8 +46,7 @@ sci %>% select(etiology , etiology_imp) %>% miss_var_summary()
 
 imputed_vars <- names(sci) %>% str_subset("_imp$") %>% str_remove("_imp")
 
-sci <- sci %>% select(-imputed_vars) %>% 
-  rename_all(~str_remove(., "_imp$"))
+sci <- sci %>% select(-imputed_vars) %>%  rename_all(~str_remove(., "_imp$"))
 
 sci %>% select(imputed_vars) %>% miss_var_summary()
 
@@ -105,7 +74,8 @@ sci <- sci %>% mutate(
   time_since_sci = if_else(id_swisci == "509102" & tp == "ts2", 231 + 60, time_since_sci)
 )
 
-sci %>% filter(id_swisci %in% c("143607", "509102")) %>% 
+sci %>% 
+  filter(id_swisci %in% c("143607", "509102")) %>% 
   select(id_swisci, tp, time_since_sci)
 
 
@@ -118,3 +88,4 @@ sci <- sci %>% filter(!is.na(sex))
 save(sci, file = file.path("workspace", "manually_imputed.Rdata"))
 
 rm(sci)
+
