@@ -93,9 +93,9 @@ rm("cb_hsr_12", "cb_st_ba_12", "get_labels_from_codebook")
 
 # Function to load and label swisci data
 
-load_swisci_data <- function(path_ds, tp, cat_vars = NULL,  num_vars = NULL, other_vars = NULL, codebook) {
+load_swisci_data <- function(path_ds, tp, cat_vars = NULL, num_vars = NULL, other_vars = NULL, codebook) {
   
-
+  
   # Check whether there are variables to label
   
   if(is.null(cat_vars) && is.null(num_vars) && is.null(other_vars)) {
@@ -140,9 +140,9 @@ load_swisci_data <- function(path_ds, tp, cat_vars = NULL,  num_vars = NULL, oth
   if( !is.null(cat_vars) ) {
     
     ds_cat_vars <- map_dfc(cat_vars, recode_variables, my_file = my_file, codebook = codebook) %>% 
-    set_names(cat_vars) %>% 
-    add_column(id_swisci = my_file$id_swisci, .before = 1) %>% 
-    mutate_all(str_to_lower)
+      set_names(cat_vars) %>% 
+      add_column(id_swisci = my_file$id_swisci, .before = 1) %>% 
+      mutate_all(str_to_lower)
     
   }
   
@@ -160,10 +160,10 @@ load_swisci_data <- function(path_ds, tp, cat_vars = NULL,  num_vars = NULL, oth
   
   to_merge <- list(cat_vars = ds_cat_vars, num_vars = ds_num_vars, other_vars = select(my_file, id_swisci, other_vars))
   to_merge <- to_merge[map_lgl(to_merge, function(x) ncol(x) > 1 && !is.null(x))]
-
+  
   reduce(to_merge, full_join, by = "id_swisci") %>% 
     mutate(tp = tp)
-
+  
 }
 
 # Load and relabel swisci data of 2012 ------------------------------------------------
@@ -189,18 +189,35 @@ swisci_12 <- load_swisci_data(path_ds = file.path("data", "2019-C-006_2012__2019
 
 
 
-# Load additional variables (numeric vars are obligatory -> problem, needs to be solved, as well, medstat needs to be there)
+# Load additional variables
 
 swisci_12_add <- load_swisci_data(path_ds = file.path("data", "2018-C-006_2019_02_27.csv"),
                                   tp = "ts1",
                                   cat_vars = c("ef_short_transport", "ef_long_transport"),
-                                  other_vars = "scim_20",
                                   codebook = cb_12)
 
 
-swisci_12 <- left_join(swisci_12, swisci_12_add, by = c("id_swisci", "tp"))
+scim_vars <- read.csv2("data/scim_2012.csv") %>% names() %>% .[-1] %>% str_remove("ts1_")
 
-rm(cb_12, my_cat_vars, my_num_vars, my_other_vars, swisci_12_add)
+swisci_12_add2 <- load_swisci_data(path_ds = file.path("data", "scim_2012.csv"),
+                                  tp = "ts1",
+                                  other_vars = scim_vars,
+                                  codebook = cb_12)
+
+scim_rasch <- read.csv2("data/scim_2012_rasch.csv") %>% names() %>% .[-1]
+
+swisci_12_add3 <- load_swisci_data(path_ds = file.path("data", "scim_2012_rasch.csv"),
+                                   tp = "ts1",
+                                   num_vars = scim_rasch,
+                                   codebook = cb_12)
+
+
+swisci_12 <- swisci_12 %>% 
+  left_join(swisci_12_add, by = c("id_swisci", "tp")) %>% 
+  left_join(swisci_12_add2, by = c("id_swisci", "tp")) %>% 
+  left_join(swisci_12_add3, by = c("id_swisci", "tp"))
+
+rm(cb_12, my_cat_vars, my_num_vars, my_other_vars, swisci_12_add, swisci_12_add2, scim_vars, scim_rasch)
 
 
 
@@ -246,11 +263,30 @@ swisci_17 <- load_swisci_data(path_ds = file.path("data", "2019-C-006_2017__2019
 swisci_17_add <- load_swisci_data(path_ds = file.path("data", "2018-C-006_Fragebogen2_2019_02_27.csv"),
                                   tp = "ts2",
                                   cat_vars = c("ef_short_transport", "ef_long_transport"),
-                                  other_vars = "scim_20",
                                   codebook = cb_17)
 
+scim_vars <- read.csv2("data/scim_2017.csv") %>% names() %>% .[-1] %>% str_remove("ts2_")
 
-swisci_17 <- left_join(swisci_17, swisci_17_add, by = c("id_swisci", "tp"))
+
+swisci_17_add2 <- load_swisci_data(path_ds = file.path("data", "scim_2017.csv"),
+                                   tp = "ts2",
+                                   other_vars = scim_vars,
+                                   codebook = cb_17)
+
+scim_rasch <- read.csv2("data/scim_2017_rasch.csv") %>% names() %>% .[-1]
+
+swisci_17_add3 <- load_swisci_data(path_ds = file.path("data", "scim_2017_rasch.csv"),
+                                   tp = "ts2",
+                                   num_vars = scim_rasch,
+                                   codebook = cb_17)
+
+
+
+swisci_17 <- swisci_17 %>% 
+  left_join(swisci_17_add, by = c("id_swisci", "tp")) %>% 
+  left_join(swisci_17_add2, by = c("id_swisci", "tp")) %>% 
+  left_join(swisci_17_add3, by = c("id_swisci", "tp"))
+
 
 
 ## Recode binary variables
@@ -273,5 +309,6 @@ save(swisci_12, file = file.path("workspace", "swisci_12_raw.RData"))
 save(swisci_17, file = file.path("workspace", "swisci_17_raw.RData"))
 
 rm("cb_17", "fread", "load_swisci_data", "my_cat_vars", "my_num_vars", 
-  "my_other_vars", "sec_health_cond", "swisci_12", "swisci_12_vars", 
-  "swisci_17", "swisci_17_add", "swisci_17_vars")
+  "my_other_vars", "scim_rasch", "scim_vars", "sec_health_cond", 
+  "swisci_12", "swisci_12_add3", "swisci_12_vars", "swisci_17", 
+  "swisci_17_add", "swisci_17_add2", "swisci_17_add3", "swisci_17_vars")

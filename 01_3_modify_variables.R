@@ -2,6 +2,7 @@
 ## Modify variables
 
 library(tidyverse)
+library(naniar)
 
 load(file.path("workspace", "data_harmonized.Rdata"))
 
@@ -11,8 +12,11 @@ load(file.path("workspace", "data_harmonized.Rdata"))
 sci <- sci %>% mutate_at(vars(age, time_since_sci), as.numeric)
 
 
-# Make new categories of existing variables -------------------------------
+# Change numeric values ---------------------------------------------------
 
+sci$time_since_sci_y <- sci$time_since_sci/12
+
+# Make new categories of existing variables -------------------------------
 
 # Ambulatory status
 
@@ -32,9 +36,37 @@ sci <- mutate(sci, amb_status = fct_recode(scim_20, !!!recode_scim_2))
 
 # Secondary health conditions and chronic conditions
 
+# Replace NA's with 0 in those participants who never indicated a 0. We expect that they just didn't fill out the 
+# conditions of which they did not suffer from
+
+sci <- mutate_at(sci, vars(starts_with("problem_")), as.integer)
+
+sci %>% select(matches("problem_")) %>% miss_var_summary
+
 sci <- sci %>% 
-  mutate_at(vars(problem_diabetes:problem_depression), as.integer) %>% 
-  mutate_at(vars(problem_pressure:problem_circulatory), as.integer)
+  mutate(n_zeros = pmap_int(select(., starts_with("problem_")), ~sum(c(...) == 0, na.rm = T))) %>% 
+  mutate(n_missing = pmap_int(select(., starts_with("problem_")), ~sum(is.na(c(...)), na.rm = T))) %>% 
+  mutate_at(vars(starts_with("problem_")), ~if_else(n_zeros %in% 0L & is.na(.), 0L, as.integer(.)))
+
+sci %>% select(matches("problem_")) %>% miss_var_summary
+
+SHC_all_levels <- sci %>% select(id_swisci, matches("problem_"))
+
+saveRDS(SHC_all_levels, file = file.path("workspace", "SHC_all_levels.RData"))
+
+
+# Keep only severe and chronic forms of secondary health conditions
+
+shc_vars <- str_subset(names(sci), "problem_") %>% str_subset(c("diabetes|heart|cancer|depression"), negate = TRUE)
+
+sci <- sci %>%
+  mutate_at(vars(shc_vars), ~case_when(
+  . %in% c(0:2) ~ 0L,
+  . == 3L ~ 1L,
+  TRUE ~ as.integer(.)))
+
+select(sci, matches("problem_")) %>% colSums(na.rm = T)
+
 
 # Recode paracenter utilization -------------------------------------------
 
@@ -224,7 +256,7 @@ sci <- sci %>% select(id_swisci, tp, sex, age, time_since_sci,
                       amb_status,
                       module_hcu_12,
                       medstat,
-                      problem_pressure:problem_pain) 
+                      matches("problem_"), scim_1:scim_rasch)
 
 
 # Change character variables to factors
@@ -305,4 +337,6 @@ sci <- mutate(sci, hc_inpatient_num = if_else(id_swisci == "507163" & tp == "ts1
 
 save(sci, file = file.path("workspace", "variables_modified.Rdata"))
 
-rm("ef_order", "recode_scim_2", "sci", "vars_ambulant_paracenter", "vars_inpatient_paracenter")
+rm("ef_order", "recode_scim_2", "sci", "vars_ambulant_paracenter", "vars_inpatient_paracenter", "shc_vars",
+   "SHC_all_levels")
+

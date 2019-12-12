@@ -3,10 +3,9 @@
 
 library(tidyverse)
 library(naniar)
+library(readxl)
 
-load( file.path("workspace", "variables_modified.Rdata"))
-
-
+load(file.path("workspace", "variables_modified.Rdata"))
 
 # Check missings ----------------------------------------------------------
 
@@ -14,6 +13,19 @@ filter(sci, tp == "ts2") %>%
   miss_var_summary() %>% 
   filter(!str_detect(variable, "hc_")) %>% 
   print(n = 50)
+
+
+# Add missing medstat regions ---------------------------------------------
+
+miss_var_summary(sci) %>% filter(variable == "medstat")
+
+missing_medstats <- read_excel("data/Medstat_Balgrist IDs_Completed_20191211.xlsx") %>% 
+  select(id_swisci = `SwiSCI ID`, medstat = `Medstat Region`) %>% 
+  mutate_if(is.numeric, as.character)
+
+sci[match(missing_medstats$id_swisci, sci$id_swisci), ]$medstat <- missing_medstats$medstat
+
+rm(missing_medstats)
 
 
 # Impute data by last observation carried backwards and forward within same participant
@@ -53,6 +65,7 @@ sci %>% select(imputed_vars) %>% miss_var_summary()
 rm(imputed_vars, imp_locbf)
 
 
+
 # Repair time since SCI variable
 
 sci %>% 
@@ -79,6 +92,20 @@ sci %>%
   select(id_swisci, tp, time_since_sci)
 
 
+# Some wrong tsi coding in 2012
+
+# Checked with the study center, ts2 times since sci were correct
+
+sci[sci$id_swisci == "133810", ]$time_since_sci <- c(78 - 60, 78)
+sci[sci$id_swisci == "133824", ]$time_since_sci <- c(138 - 60, 138)
+sci[sci$id_swisci == "142415", ]$time_since_sci <- c(146 - 60, 146)
+sci[sci$id_swisci == "142525", ]$time_since_sci <- c(230 - 60, 230)
+sci[sci$id_swisci == "505519", ]$time_since_sci <- c(554 - 60, 554)
+sci[sci$id_swisci == "507078", ]$time_since_sci <- c(620 - 60, 620)
+sci[sci$id_swisci == "507089", ]$time_since_sci <- c(332 - 60, 332)
+sci[sci$id_swisci == "507375", ]$time_since_sci <- c(367 - 60, 367)
+
+
 # Remove case where we have no data
 
 sci <- sci %>% filter(!is.na(sex))
@@ -88,4 +115,3 @@ sci <- sci %>% filter(!is.na(sex))
 save(sci, file = file.path("workspace", "manually_imputed.Rdata"))
 
 rm(sci)
-

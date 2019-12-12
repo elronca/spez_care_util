@@ -28,7 +28,10 @@ intersect(names(swisci_12), names(swisci_17))
 # Variables that are unique to each dataset
 
 setdiff(names(swisci_12), intersect(names(swisci_12), names(swisci_17)))
+swisci_12 <- select(swisci_12, -c(scim_15))
+
 setdiff(names(swisci_17), intersect(names(swisci_12), names(swisci_17)))
+swisci_17 <- select(swisci_17, -starts_with("scim_15"), -scim_score_total, -scim_incomplete)
 
 
 # Rename identical variables with different names -------------------------
@@ -36,8 +39,10 @@ setdiff(names(swisci_17), intersect(names(swisci_12), names(swisci_17)))
 # Age
 
 swisci_12 <- rename(swisci_12, age = age_quest_admin)
-swisci_17 <- rename(swisci_17, age = age_quest)
+swisci_12 <- rename(swisci_12, scim_rasch = SCIM_2012_rasch_score_imputed_0_100)
 
+swisci_17 <- rename(swisci_17, age = age_quest)
+swisci_17 <- rename(swisci_17, scim_rasch = SCIM_2017_rasch_score_imputed_0_100)
 
 # Healthcare utilization
 
@@ -57,8 +62,7 @@ n_rows <- nrow(swisci_12)
 swisci_17 %>% select(one_of(extra_col_names)) %>% map_chr(class) %>% unname() %>% unique()
 
 extra_cols <- matrix(data = NA_character_, nrow = n_rows, ncol = n_cols, 
-                     dimnames = list(NULL, extra_col_names)) %>% 
-  as_tibble()
+                     dimnames = list(NULL, extra_col_names)) %>% as_tibble()
 
 
 swisci_12 <- bind_cols(swisci_12, extra_cols)
@@ -67,8 +71,7 @@ swisci_12 <- bind_cols(swisci_12, extra_cols)
 
 # Join datasets -----------------------------------------------------------
 
-sci <- bind_rows(swisci_12, swisci_17) %>% 
-  arrange(as.numeric(id_swisci), tp)
+sci <- bind_rows(swisci_12, swisci_17) %>% arrange(as.numeric(id_swisci), tp)
 
 rm(swisci_12, swisci_17, extra_cols, extra_col_names, n_cols, n_rows, ids_hcu)
 
