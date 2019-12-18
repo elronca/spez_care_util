@@ -86,7 +86,8 @@ cb_17 <- get_labels_from_codebook(
 
 rm("cb_hsr_12", "cb_st_ba_12", "get_labels_from_codebook")
 
-
+saveRDS(cb_12, file.path("workspace", "cb_12.RData"))
+saveRDS(cb_17, file.path("workspace", "cb_17.RData"))
 
 
 # Read and format data ---------------------------------------------------------------

@@ -4,7 +4,7 @@ library(tidyverse)
 
 Sys.setenv(LANGUAGE = 'en')
 
-load(file.path("workspace", "manually_imputed.Rdata"))
+sci <- readRDS(file.path("workspace", "manually_imputed.Rdata"))
 
 
 # Prepare some data

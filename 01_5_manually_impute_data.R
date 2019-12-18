@@ -17,15 +17,39 @@ filter(sci, tp == "ts2") %>%
 
 # Add missing medstat regions ---------------------------------------------
 
-miss_var_summary(sci) %>% filter(variable == "medstat")
 
-missing_medstats <- read_excel("data/Medstat_Balgrist IDs_Completed_20191211.xlsx") %>% 
+
+missing_medstats_Balgrist <- read_excel("data/Medstat_Balgrist IDs_Completed_20191211.xlsx") %>% 
   select(id_swisci = `SwiSCI ID`, medstat = `Medstat Region`) %>% 
   mutate_if(is.numeric, as.character)
 
-sci[match(missing_medstats$id_swisci, sci$id_swisci), ]$medstat <- missing_medstats$medstat
+missing_medstats_SPV <- read_excel("data/Medstat_SPV IDs.xlsx") %>% 
+  select(id_swisci = `SPFID`, medstat = `MD`) %>% 
+  mutate_if(is.numeric, as.character)
 
-rm(missing_medstats)
+
+tp2 <- sci$tp == "ts2"
+
+miss_var_summary(sci) %>% filter(variable == "medstat")
+
+sci[tp2,][match(missing_medstats_Balgrist$id_swisci, sci$id_swisci[tp2]), ]$medstat <- missing_medstats_Balgrist$medstat
+sci[tp2,][match(missing_medstats_SPV$id_swisci, sci$id_swisci[tp2]), ]$medstat <- missing_medstats_SPV$medstat
+
+
+# Parahelp missing medstats
+
+sci[tp2,][sci[tp2,]$id_swisci == "122429", ]$medstat <- "BL05"
+sci[tp2,][sci[tp2,]$id_swisci == "122653", ]$medstat <- "AG52"
+sci[tp2,][sci[tp2,]$id_swisci == "123601", ]$medstat <- "JU05"
+
+# RehaB missing medstats
+
+sci[tp2,][sci[tp2,]$id_swisci == "125050", ]$medstat <- "BL06"
+
+
+miss_var_summary(sci) %>% filter(variable == "medstat")
+
+rm(missing_medstats_Balgrist, missing_medstats_SPV, tp2)
 
 
 # Impute data by last observation carried backwards and forward within same participant
@@ -112,6 +136,6 @@ sci <- sci %>% filter(!is.na(sex))
 
 # Save dataset and clear workspace
 
-save(sci, file = file.path("workspace", "manually_imputed.Rdata"))
+saveRDS(sci, file.path("workspace", "manually_imputed.Rdata"))
 
 rm(sci)

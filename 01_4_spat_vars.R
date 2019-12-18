@@ -432,7 +432,7 @@ spatial_vars <- left_join(spatial_vars, select(degurba, MedStat, degurba), by = 
 
 spatial_vars <- select(spatial_vars, -geometry)
 
-save(spatial_vars, file = file.path("workspace", "spatial_vars.RData"))
+saveRDS(spatial_vars, file.path("workspace", "spatial_vars.RData"))
 
 rm("cent_addresses", "cent_addresses.sp", "cent_coordinates", 
    "coordinates.sp", "crs_MS_spdf", "degurba", "degurba_CH_14", 

@@ -22,8 +22,12 @@ eff_SHC <- function(predictor, outcome, df){
   
   fit <- glm(expr(!!ensym(outcome) ~ !!ensym(predictor)), data = df, family = binomial(link = "logit"))
   
-  tidy(fit, exponentiate = TRUE, conf.int = TRUE) %>% 
-    mutate(p.value = round(p.value, 3))
+  if(F) {print(na.action(fit))}
+  if(T) {print(naprint(na.action(fit)))}
+  
+  res <- tidy(fit, exponentiate = TRUE, conf.int = TRUE) %>% mutate(p.value = round(p.value, 3))
+  
+  return(res)
   
 }
 
