@@ -5,7 +5,7 @@ library(tidyverse)
 library(naniar)
 library(readxl)
 
-load(file.path("workspace", "variables_modified.Rdata"))
+sci <- readRDS(file.path("workspace", "variables_modified.Rdata"))
 
 # Check missings ----------------------------------------------------------
 
@@ -41,6 +41,7 @@ sci[tp2,][match(missing_medstats_SPV$id_swisci, sci$id_swisci[tp2]), ]$medstat <
 sci[tp2,][sci[tp2,]$id_swisci == "122429", ]$medstat <- "BL05"
 sci[tp2,][sci[tp2,]$id_swisci == "122653", ]$medstat <- "AG52"
 sci[tp2,][sci[tp2,]$id_swisci == "123601", ]$medstat <- "JU05"
+
 
 # RehaB missing medstats
 

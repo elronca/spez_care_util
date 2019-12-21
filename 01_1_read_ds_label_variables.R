@@ -306,8 +306,8 @@ swisci_17 <- swisci_17 %>%
 
 # Save datasets and clear workspace
 
-save(swisci_12, file = file.path("workspace", "swisci_12_raw.RData"))
-save(swisci_17, file = file.path("workspace", "swisci_17_raw.RData"))
+saveRDS(swisci_12, file = file.path("workspace", "swisci_12_raw.RData"))
+saveRDS(swisci_17, file = file.path("workspace", "swisci_17_raw.RData"))
 
 rm("cb_17", "fread", "load_swisci_data", "my_cat_vars", "my_num_vars", 
   "my_other_vars", "scim_rasch", "scim_vars", "sec_health_cond", 

@@ -6,6 +6,7 @@ library(tidyverse)
 library(naniar)
 library(mice)
 library(parallel)
+library(VIF)
 
 sci <- readRDS(file.path("workspace", "outcome_vars_prepared.Rdata"))
 
@@ -43,7 +44,6 @@ select(sci, predictor_vars) %>% miss_summary %>% pluck("miss_var_summary") %>% .
 
 
 # Used for imputation but will not be imputed
-
 
 # Outcome vars
 
@@ -86,30 +86,40 @@ select(sci, other_vars_to_keep)
 
 sci <- sci %>% select(predictor_vars, outcome_vars, scim_vars, other_vars_to_keep)
 
-
-
 # The rows correspond to incomplete target variables, in the sequence as
 # they appear in the data. A value of 1 indicates that the column variable is
 # a predictor to impute the target (row) variable, and a 0 means that it is not
 # used.
 
-if(F) {
-  predictor_matrix <- make.predictorMatrix(sci, blocks = make.blocks(sci))
-  predictor_matrix[, other_vars_to_keep] <- 0
-}
+outlist_constant <- c("id_swisci", "medstat")
+
+outlist_scim <- flux(select(sci, -outlist_constant)) %>% 
+  select(pobs, influx, outflux) %>% 
+  as_tibble(rownames = "variable") %>% 
+  arrange(desc(outflux)) %>% 
+  filter(str_detect(variable, "scim_")) %>% 
+  filter(outflux < 0.9) %>% 
+  pull(variable)
+
+outlist_hc <- sci %>% names %>% str_subset("hc_") %>% str_subset("parac", negate = T)
+
+outlist_all <- unique(c(outlist_constant, outlist_scim, outlist_hc))
+
+my_data <- sci %>% select(-outlist_all)
+
+mice::fluxplot(my_data)
+
+predictor_matrix <- make.predictorMatrix(
+  data = select(sci, -outlist_constant, -outlist_scim, -dist_ambulant), 
+  blocks = make.blocks(select(sci, -outlist_constant, -outlist_scim, -dist_ambulant))
+  )
+
+predictor_matrix[, "hc_inpatient_parac"] <- 0
+predictor_matrix[, "dist_checkup"] <- 0
 
 
 
 # Define variables not to be imputed -----------------------------------------
-
-if(F) {
-  
-  vars_to_impute <- is.na(sci)
-  vars_to_impute[, outcome_vars] <- FALSE
-  vars_to_impute[, scim_vars] <- FALSE
-  vars_to_impute[, other_vars_to_keep] <- FALSE
-
-}
 
 
 # Start imputation --------------------------------------------------------
@@ -118,14 +128,22 @@ n_cores <- detectCores(all.tests = FALSE, logical = TRUE)
 
 start_imp <- Sys.time()
 
-imp <- parlmice(sci, n.core = n_cores, cluster.seed = 1, n.imp.core = 2)
+imp <- parlmice(data = select(sci, -outlist_constant, -outlist_scim, -dist_ambulant), 
+                predictorMatrix = predictor_matrix,
+                n.core = n_cores, cluster.seed = 1, n.imp.core = 1)
 
 end_imp <- Sys.time()
 
 end_imp - start_imp
 
-imp$predictorMatrix
 imp$loggedEvents
+
+
+# Remove factor order from imputed datasets --------------------------------------
+
+imp <- mice::complete(imp, "long", include = TRUE) %>%
+  mutate_if(is.factor, ~factor(., ordered = FALSE)) %>% 
+  as.mids()
 
 saveRDS(imp, file.path("workspace", "imputed_sci.RData"))
 
@@ -135,13 +153,13 @@ imp_long %>%
   group_by(.imp) %>% 
   summarize(n_NA = sum(is.na(completeness)))
 
+imp_long %>% 
+  group_by(.imp) %>% 
+  summarize(n_NA = sum(is.na(dist_checkup)))
 
-
-naniar::miss_summary(imp_long)["miss_var_summary"] %>% unnest(cols = c(miss_var_summary)) %>% print(n = 75)
-
-sapply(sci_sel_short, function(x) sum(is.na(x)))
-
-
+naniar::miss_summary(imp_long)["miss_var_summary"] %>% 
+  unnest(cols = c(miss_var_summary)) %>% 
+  print(n = 75)
 
 
 
@@ -154,9 +172,9 @@ sapply(sci_sel_short, function(x) sum(is.na(x)))
 
 # https://stefvanbuuren.name/fimd/missing-data-pattern.html
 
-flux(sci[, -1])[, 1:3] %>% as_tibble(rownames = "my_var") %>% arrange(desc(outflux)) %>% print(n = 30)
-
-mice::fluxplot(sci)
+# flux(sci[, -1])[, 1:3] %>% as_tibble(rownames = "my_var") %>% arrange(desc(outflux)) %>% print(n = 30)
+# 
+# mice::fluxplot(sci)
 
 # In general, variables that are located higher up in the display are more complete and thus potentially more 
 # useful for imputation. In practice variables closer to the subdiagonal are typically better connected than 
@@ -246,3 +264,7 @@ mice::fluxplot(sci)
 
 # https://stefvanbuuren.name/fimd/sec-modelform.html
 
+rm("end_imp", "imp", "imp_long", "my_data", "n_cores", "other_vars_to_keep", 
+  "outcome_vars", "outlist_all", "outlist_constant", "outlist_hc", 
+  "outlist_scim", "predictor_matrix", "predictor_vars", "sci", 
+  "scim_over_20_per_mis", "scim_vars", "start_imp")

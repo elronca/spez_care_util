@@ -7,8 +7,8 @@ library(tidyverse)
 
 Sys.setenv(LANGUAGE = 'en')
 
-load(file.path("workspace", "swisci_12_raw.RData"))
-load(file.path("workspace", "swisci_17_raw.RData"))
+swisci_12 <- readRDS(file.path("workspace", "swisci_12_raw.RData"))
+swisci_17 <- readRDS(file.path("workspace", "swisci_17_raw.RData"))
 
 ids_hcu <- read.csv2(file.path("data", "2013-C-013_2015_02_19.csv"), 
                      colClasses = c("character", rep("NULL", 30))) %>% 
@@ -182,6 +182,6 @@ sci <- calc_row_sum(sci, "hc_paraplegic_check", "hc_paraplegic_acute", "hc_parap
 
 # Save data and clear workspace -------------------------------------------
 
-save(sci, file = file.path("workspace", "data_harmonized.Rdata"))
+saveRDS(sci, file = file.path("workspace", "data_harmonized.Rdata"))
 
 rm("calc_row_sum", "ef_levels", "recode_scim", "sci", "to_factor")

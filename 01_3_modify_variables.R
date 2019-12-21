@@ -4,7 +4,7 @@
 library(tidyverse)
 library(naniar)
 
-load(file.path("workspace", "data_harmonized.Rdata"))
+sci <- readRDS(file = file.path("workspace", "data_harmonized.Rdata"))
 
 
 # Make numeric variables numeric ------------------------------------------
@@ -20,7 +20,7 @@ sci$time_since_sci_y <- sci$time_since_sci/12
 
 # Ambulatory status
 
-recode_scim_2 <- c(
+recode_scim_20 <- c(
   electric_wheelchair = "I need total assistance",
   electric_wheelchair = "I need an electric wheelchair or partial assistance to operate a manual wheelchair", 
   manual_wheekchair = "I am independent in a manual wheelchair",
@@ -31,7 +31,7 @@ recode_scim_2 <- c(
   walking_freely = "walk with a leg orthosis(es) only (e.g., leg splint)",
   walking_freely = "walk without walking aids")
 
-sci <- mutate(sci, amb_status = fct_recode(scim_20, !!!recode_scim_2))
+sci <- mutate(sci, amb_status = fct_recode(scim_20, !!!recode_scim_20))
 
 
 # Secondary health conditions and chronic conditions
@@ -335,8 +335,8 @@ sci <- mutate(sci, hc_inpatient_num = if_else(id_swisci == "507163" & tp == "ts1
 
 # Save data and clear workspace -------------------------------------------
 
-save(sci, file = file.path("workspace", "variables_modified.Rdata"))
+saveRDS(sci, file = file.path("workspace", "variables_modified.Rdata"))
 
-rm("ef_order", "recode_scim_2", "sci", "vars_ambulant_paracenter", "vars_inpatient_paracenter", "shc_vars",
+rm("ef_order", "recode_scim_20", "sci", "vars_ambulant_paracenter", "vars_inpatient_paracenter", "shc_vars",
    "SHC_all_levels")
 

@@ -4,7 +4,7 @@
 library(tidyverse)
 
 sci <- readRDS(file.path("workspace", "manually_imputed.Rdata"))
-spatial_vars <- readRDS(file.path("workspace", "spatial_vars.RData"))
+load(file.path("workspace", "spatial_vars.RData"))
 
 
 # Reduce dataset to records of the 2017 survey ----------------------------
