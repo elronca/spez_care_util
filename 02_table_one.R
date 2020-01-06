@@ -6,6 +6,8 @@ Sys.setenv(LANGUAGE = 'en')
 
 sci <- readRDS(file.path("workspace", "manually_imputed.Rdata"))
 
+table(sci$tp)
+
 
 # Prepare some data
 

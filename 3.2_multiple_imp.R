@@ -4,9 +4,7 @@
 library(mice)
 library(tidyverse)
 library(naniar)
-library(mice)
 library(parallel)
-library(VIF)
 
 sci <- readRDS(file.path("workspace", "outcome_vars_prepared.Rdata"))
 
@@ -31,8 +29,8 @@ predictor_vars <- c("sex", "age", "time_since_sci", "lesion_level", "completenes
                     "problem_respiratory", "problem_sleep", "problem_injury", "problem_contractures", 
                     "problem_ossification", "problem_bladder", "problem_bowel", "problem_dysreflexia", 
                     "problem_hypotension", "problem_circulatory", "problem_diabetes", "problem_heart", 
-                    "problem_cancer", "problem_depression", "problem_pain", "scim_20", "dist_ambulant", 
-                    "dist_checkup", "dist_inpat", "language", "degurba")
+                    "problem_cancer", "problem_depression", "problem_pain", "scim_20", 
+                    "dist_amb_check_up", "dist_inpat", "language", "degurba")
 
 sci <- sci %>% mutate_at(vars(starts_with("problem_")), as.factor)
 sci$scim_rasch <- as.numeric(sci$scim_rasch)
@@ -103,19 +101,17 @@ outlist_scim <- flux(select(sci, -outlist_constant)) %>%
 
 outlist_hc <- sci %>% names %>% str_subset("hc_") %>% str_subset("parac", negate = T)
 
-outlist_all <- unique(c(outlist_constant, outlist_scim, outlist_hc))
+outlist_all <- unique(c(outlist_constant, setdiff(outlist_scim, "scim_20")))
 
 my_data <- sci %>% select(-outlist_all)
 
 mice::fluxplot(my_data)
 
-predictor_matrix <- make.predictorMatrix(
-  data = select(sci, -outlist_constant, -outlist_scim, -dist_ambulant), 
-  blocks = make.blocks(select(sci, -outlist_constant, -outlist_scim, -dist_ambulant))
-  )
+predictor_matrix <- make.predictorMatrix(data = my_data, blocks = make.blocks(my_data))
 
 predictor_matrix[, "hc_inpatient_parac"] <- 0
-predictor_matrix[, "dist_checkup"] <- 0
+predictor_matrix[, outlist_hc] <- 0
+
 
 
 
@@ -128,7 +124,7 @@ n_cores <- detectCores(all.tests = FALSE, logical = TRUE)
 
 start_imp <- Sys.time()
 
-imp <- parlmice(data = select(sci, -outlist_constant, -outlist_scim, -dist_ambulant), 
+imp <- parlmice(data = my_data, 
                 predictorMatrix = predictor_matrix,
                 n.core = n_cores, cluster.seed = 1, n.imp.core = 1)
 
@@ -153,14 +149,22 @@ imp_long %>%
   group_by(.imp) %>% 
   summarize(n_NA = sum(is.na(completeness)))
 
-imp_long %>% 
-  group_by(.imp) %>% 
-  summarize(n_NA = sum(is.na(dist_checkup)))
-
 naniar::miss_summary(imp_long)["miss_var_summary"] %>% 
   unnest(cols = c(miss_var_summary)) %>% 
   print(n = 75)
 
+
+# Diagnostics -------------------------------------------------------------
+
+stripplot(imp, time_since_sci+dist_amb_check_up+dist_inpat ~.imp, jitter=T, layout=c(3,1))
+
+densityplot(imp)
+
+fit <- with(imp, glm(ici(imp) ~ sex + age + completeness + etiology + language + short_transp_barr + 
+                       problem_injury + problem_sexual + problem_ossification, family = binomial))
+
+ps <- rep(rowMeans(sapply(fit$analyses, fitted.values)), imp$m + 1)
+xyplot(imp, completeness ~ ps|as.factor(.imp), xlab = "Probability that record is incomplete", ylab = "completeness", cex = 2)
 
 
 # Literature --------------------------------------------------------------
@@ -267,4 +271,4 @@ naniar::miss_summary(imp_long)["miss_var_summary"] %>%
 rm("end_imp", "imp", "imp_long", "my_data", "n_cores", "other_vars_to_keep", 
   "outcome_vars", "outlist_all", "outlist_constant", "outlist_hc", 
   "outlist_scim", "predictor_matrix", "predictor_vars", "sci", 
-  "scim_over_20_per_mis", "scim_vars", "start_imp")
+  "scim_over_20_per_mis", "scim_vars", "start_imp", "fit", "ps")

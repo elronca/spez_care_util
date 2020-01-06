@@ -12,10 +12,6 @@ imp_long <- imp %>% mice::complete("long", include = TRUE)
 
 names(imp_long)
 
-
-table(ds_1$hc_inpatient, useNA = "always")
-table(ds_1$hc_inpatient_parac, useNA = "always")
-
 imp_long %>% 
   filter(.imp == 1) %>% 
   mutate_at(vars(starts_with("hc_")), ~as.integer(as.character(.))) %>% 
@@ -32,9 +28,6 @@ imp_long %>%
     variable == "n_amb_parac" ~ 100 * 235 / 713,
     variable == "n_inp_parac" ~ 100 * 178 / 403,
     TRUE ~ NA_real_))
-
-
-
 
 
 # Relevel variables -------------------------------------------------------

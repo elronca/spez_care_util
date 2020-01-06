@@ -289,9 +289,9 @@ sci <- sci %>%
     
     long_transp_barr = fct_relevel(long_transp_barr, !!!ef_order),
     
-    amb_status = fct_relevel(amb_status, c("walking_freely", "walking_independently", "manual_wheekchair", "electric_wheelchair"))
+    amb_status = fct_relevel(amb_status, c("walking_freely", "walking_independently", "manual_wheekchair", "electric_wheelchair")),
     
-  ) %>% 
+    scim_20 = fct_rev(scim_20)) %>% 
   
   mutate_if(is.factor, fct_drop) %>% 
   

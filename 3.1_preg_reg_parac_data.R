@@ -23,10 +23,10 @@ parac_inpat_vars <- str_subset(names(sci), "hc_para") %>% str_subset("_inpat")
 sci <- sci %>% 
   mutate(hc_ambulant_parac = if_else(rowSums(select(., parac_amb_vars), na.rm = T) > 0L, 1L, 0L)) %>% 
   mutate(hc_parac_check = if_else(rowSums(select(., parac_check_vars), na.rm = T) > 0L, 1L, 0L)) %>% 
-  mutate(hc_inpatient_parac = if_else(rowSums(select(., parac_check_vars), na.rm = T) > 0L, 1L, 0L))
+  mutate(hc_inpatient_parac = if_else(rowSums(select(., parac_inpat_vars), na.rm = T) > 0L, 1L, 0L))
 
 
-# Driving time for outpatient visits --------------------------------------
+# Driving time for outpatient visits and checkups --------------------------------------
 
 # Bellinzona is not yet as it was very new in 2017
 
@@ -35,14 +35,8 @@ sci <- spatial_vars %>%
   group_by(MEDSTAT04) %>% 
   filter(rank(duration_min) == 1) %>% 
   ungroup() %>% 
-  select(medstat = MEDSTAT04, dist_ambulant = duration_min) %>% 
+  select(medstat = MEDSTAT04, dist_amb_check_up = duration_min) %>% 
   left_join(sci, ., by = "medstat")
-
-
-
-# Driving times for check up visits ---------------------------------------
-
-sci <- mutate(sci, dist_checkup = dist_ambulant)
 
 
 # Driving times for inpatient hospitalizations ---------------------------------------
@@ -61,7 +55,7 @@ sci <- spatial_vars %>%
 
 sci <- left_join(sci, distinct(select(spatial_vars, medstat = MEDSTAT04, language, degurba)), by = "medstat")
 
-sum(is.na(sci$dist_checkup))
+sci <- mutate(sci, degurba = fct_relevel(degurba, c("rural", "suburban", "urban")))
 
 
 # Save file and clear workspace -------------------------------------------
