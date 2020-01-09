@@ -4,77 +4,61 @@ library(emmeans)
 
 
 fit_check <- readRDS(file.path("workspace", "fit_hc_parac_check.RData"))
+p_check <- readRDS(file.path("workspace", "p_values_hc_parac_check.RData"))
+
 fit_ambulant <- readRDS(file.path("workspace", "fit_hc_ambulant_parac.RData"))
+p_ambulant <- readRDS(file.path("workspace", "p_values_hc_ambulant_parac.RData"))
+
 fit_inpatient <- readRDS(file.path("workspace", "fit_hc_inpatient_parac.RData"))
+p_inpatient <- readRDS(file.path("workspace", "p_values_hc_inpatient_parac.RData"))
 
 best_vars <- readRDS(file.path("workspace", "best_vars.RData"))
 
-check_rg <- ref_grid(fit_check)
 
-check_pw_comp <- function(x) {
+
+# Function to obtain predicted marginal means and p values -----------------------------
+
+get_marginals <- function(categories, .fit, .p_vals) {
   
-  as.data.frame(pairs(x)) %>% 
-  select(contrast, OR = odds.ratio, p_value = p.value) %>% 
-  mutate(
-    OR = round(OR, 2),
-    p_value = round(p_value, 3),
-    OR_inv = round(1 / OR, 2)) %>% 
-  select(contrast, OR, OR_inv, p_value)
-  
-}
-
-
-## Check age
-
-
-
-check.emm.age <- emmeans(check_rg, "age_cat", type = "response")
-check_pw_comp(check.emm.age) %>% slice(1:4)
-confint(check.emm.age)
-plot(check.emm.age)
-
-
-## Check completeness of injury
-
-check.emm.compl <- emmeans(check_rg, "completeness", type = "response")
-check_pw_comp(check.emm.compl)
-confint(check.emm.compl)
-plot(check.emm.compl)
-
-
-## Sex
-
-check.emm.sex <- emmeans(check_rg, "sex", type = "response")
-check_pw_comp(check.emm.sex)
-confint(check.emm.sex)
-plot(check.emm.sex)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-get_marginals <- function(categories) {
-  
-  (emmeans(fit_check, categories, type = "response")) %>% 
+  pmms <- emmeans(.fit, categories, type = "response", weights = "proportional") %>% 
     as_tibble() %>% 
-    rename(variable = 1) %>% 
-    mutate(variable = as.character(variable))
+    rename(category = 1) %>% 
+    mutate(category = as.character(category)) %>% 
+    select(category, prob, lower = asymp.LCL, upper = asymp.UCL) %>% 
+    mutate(p_val_llrt = .p_vals[categories]) %>% 
+    mutate_at(vars(prob, lower, upper), ~. * 100) %>% 
+    mutate(p_val_llrt = round(as.numeric(p_val_llrt), 3))
   
 }
 
-best_vars$best_vars_check_up %>% 
-  set_names(.) %>% 
-  map_dfr(get_marginals, .id = "variable")
+# Get predicted marginal means ----------------------------------------------------------
+
+
+# Check up
+
+names(best_vars$form_pred_check_up) <- best_vars$form_pred_check_up
+
+pmm_check <- best_vars$form_pred_check_up %>% 
+  map_dfr(get_marginals, .fit = fit_check, .p_vals = p_check, .id = "variable") %>% 
+  print(n = 30)
+
+
+# Outpatient
+
+names(best_vars$form_pred_outpat) <- best_vars$form_pred_outpat
+
+pmm_check <- best_vars$form_pred_outpat %>% 
+  map_dfr(get_marginals, .fit = fit_ambulant, .p_vals = p_ambulant, .id = "variable") %>% 
+  print(n = 30)
+
+
+# Inpatient
+
+names(best_vars$form_pred_inpat) <- best_vars$form_pred_inpat
+
+pmm_check <- best_vars$form_pred_inpat %>% 
+  map_dfr(get_marginals, .fit = fit_inpatient, .p_vals = p_inpatient, .id = "variable") %>% 
+  print(n = 30)
+
 
 

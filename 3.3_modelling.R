@@ -2,6 +2,7 @@
 library(tidyverse)
 library(splines)
 library(mice)
+library(emmeans)
 
 imp <- readRDS(file.path("workspace", "imputed_sci.RData"))
 
@@ -231,33 +232,84 @@ modify_predictors <- function(base_vars, remove_vars = NULL, add_vars = NULL, ad
 
 ## Formula to get the estimates 
 
-get_estimates <- function(.imp_data, .outcome_var, .formula_predictors, save_fit = FALSE) {
+get_estimates <- function(.imp_data, .outcome_var, .formula_predictors, save_fit = FALSE, save_p_values = FALSE) {
   
-  if(length(formula_predictors) != 1) stop("formula_predictors needs to be a string, not a vector")
+  if(length(.formula_predictors) != 1) stop("formula_predictors needs to be a string, not a vector")
   
   
+  # Fit the logistic regression
   
   fit <- with(.imp_data, glm(as.formula(str_c(.outcome_var, " ~ ", .formula_predictors)), family = binomial))
+
+
+  # Calculate p values for the different variables using a likelihood ratio test
   
-  res <- summary(pool(fit), conf.int = TRUE, exponentiate = TRUE) %>% 
-    as_tibble(rownames = "variable") %>% 
-    mutate_at(vars(estimate, `2.5 %`, `97.5 %`), ~formatC(., format = "f", digits = 2)) %>% 
-    mutate(p.value = formatC(p.value, format = "f", digits = 3)) %>% 
-    mutate(OR = str_c(estimate, " (", `2.5 %`, " - ",`97.5 %`, ")")) %>% 
-    select(variable, OR, p.value) %>% 
-    slice(-1)
+  # Get all predictors
+  all_pred <- .formula_predictors %>% 
+    str_split(" \\+ ") %>% 
+    unlist()
   
-  print(res)
   
-  write.csv2(res, file.path("output", str_c("reg_res_", .outcome_var, ".csv")), row.names = FALSE)
+  # Get vectors of a combination of all predictors where always one predictor is missing
   
-  if(save_fit) {
+  single_pred_missing <- map(all_pred, function(x) setdiff(all_pred, x))
+  single_pred_missing <- map(single_pred_missing, function(x) str_c(x, collapse = " + "))
+  names(single_pred_missing) <- all_pred
+  
+  
+  # Get fitted models where always one predictor is missing and compare these models to the originnal models
+  # using a log likelihood ratio test
+  
+  get_alternative_fits <- function(x) {
     
-    saveRDS(fit, file.path("workspace", str_c("fit_", .outcome_var, ".RData")))
+    with(.imp_data, glm(as.formula(str_c(.outcome_var, " ~ ", x)), family = binomial))
+    
+  }
+  
+  fit_alt <- map(single_pred_missing, get_alternative_fits)
+  
+  p_values <- map(fit_alt, function(x) D3(fit, x)) %>% 
+    map(~pluck(., "result")) %>% map_chr(4)
+  
+  if(length(p_values[as.numeric(p_values) > 0.05]) != 0) {
+    
+    cat("The variable",  names(p_values[as.numeric(p_values) > 0.05]), 
+        "has/have a p value greater than 0.05 in the likelihood ratio test\n\n")
     
   }
   
   
+  
+
+res <- summary(pool(fit), conf.int = TRUE, exponentiate = TRUE) %>% 
+  as_tibble(rownames = "variable")
+
+res %>% 
+  mutate_at(vars(estimate, `2.5 %`, `97.5 %`), ~formatC(., format = "f", digits = 2)) %>% 
+  mutate(p.value = formatC(p.value, format = "f", digits = 3)) %>% 
+  mutate(OR = str_c(estimate, " (", `2.5 %`, " - ",`97.5 %`, ")")) %>% 
+  select(variable, OR, p.value) %>% 
+  slice(-1) %>%
+  write.csv2(file.path("output", str_c("reg_res_", .outcome_var, ".csv")), row.names = FALSE)
+
+
+
+if(save_fit) {
+  
+  saveRDS(fit, file.path("workspace", str_c("fit_", .outcome_var, ".RData")))
+  
+}
+
+if(save_p_values) {
+  
+  saveRDS(p_values, file.path("workspace", str_c("p_values_", .outcome_var, ".RData")))
+  
+}
+
+
+return(list("regression results" = res, "likelihood ratio test" = p_values))
+
+
 }
 
 
@@ -284,15 +336,17 @@ best_vars_check_up <- get_best_vars(.imp_data = imp,
 
 # Chhose good predictors and make formula
 
-formula_predictors <- modify_predictors(best_vars_check_up, as_formula = TRUE)
+form_pred_check_up <- modify_predictors(best_vars_check_up, as_formula = TRUE, remove_vars = "problem_diabetes")
 
 
 # Save fit and table with effects of predictors on outcome measured as odds ratios
 
 get_estimates(.imp_data = imp, 
               .outcome_var = "hc_parac_check", 
-              .formula_predictors = formula_predictors,
-              save_fit = TRUE)
+              .formula_predictors = form_pred_check_up,
+              save_fit = TRUE,
+              save_p_values = TRUE)
+
 
 
 # Outpatient visits -------------------------------------------------------
@@ -316,12 +370,16 @@ best_vars_outp <- get_best_vars(.imp_data = imp_outp,
                                 p_val_threshold = 0.05)
 
 
-formula_predictors <- modify_predictors(best_vars_outp, as_formula = TRUE)
+form_pred_outpat <- modify_predictors(best_vars_outp, 
+                                        remove_vars = "problem_diabetes",
+                                        as_formula = TRUE)
 
 get_estimates(.imp_data = imp_outp, 
               .outcome_var = "hc_ambulant_parac", 
-              .formula_predictors = formula_predictors,
-              save_fit = TRUE)
+              .formula_predictors = form_pred_outpat,
+              save_fit = TRUE,
+              save_p_values = TRUE)
+
 
 
 # Inpatient visits -------------------------------------------------------
@@ -348,18 +406,21 @@ best_vars_inpat <- get_best_vars(.imp_data = imp_inp,
                                  .response_var = "hc_inpatient_parac", 
                                  p_val_threshold = 0.05)
 
-formula_predictors <- modify_predictors(best_vars_inpat, as_formula = TRUE)
+form_pred_inpat <- modify_predictors(best_vars_inpat, as_formula = TRUE,
+                                        remove_vars = "problem_diabetes")
 
 get_estimates(.imp_data = imp_inp, 
               .outcome_var = "hc_inpatient_parac", 
-              .formula_predictors = formula_predictors,
-              save_fit = TRUE)
+              .formula_predictors = form_pred_inpat,
+              save_fit = TRUE,
+              save_p_values = TRUE)
 
 
 # Save best vars ----------------------------------------------------------
 
-best_vars <- setNames(list(best_vars_check_up, best_vars_outp, best_vars_inpat), 
-                      c("best_vars_check_up", "best_vars_outp", "best_vars_inpat"))
+best_vars <- list(form_pred_check_up, form_pred_outpat, form_pred_inpat) %>% 
+  map(~unlist(str_split(.," \\+ "))) %>% 
+  set_names(c("form_pred_check_up", "form_pred_outpat", "form_pred_inpat"))
 
 saveRDS(best_vars, file.path("workspace", "best_vars.RData"))
 
@@ -367,7 +428,7 @@ saveRDS(best_vars, file.path("workspace", "best_vars.RData"))
 
 # Clear workspace ---------------------------------------------------------
 
-rm("best_vars_check_up", "best_vars_inpat", "best_vars_outp", 
-  "formula_predictors", "get_best_vars", "get_estimates", "imp", 
-  "imp_inp", "imp_long", "imp_outp", "modify_predictors", "my_vars", 
-  "soc_dem_all", "best_vars")
+rm("best_vars", "best_vars_check_up", "best_vars_inpat", "best_vars_outp", 
+  "form_pred_check_up", "form_pred_inpat", "form_pred_outpat", 
+  "get_best_vars", "get_estimates", "imp", "imp_inp", "imp_long", 
+  "imp_outp", "modify_predictors", "my_vars", "soc_dem_all")
