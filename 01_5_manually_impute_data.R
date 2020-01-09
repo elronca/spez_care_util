@@ -135,6 +135,14 @@ sci[sci$id_swisci == "507375", ]$time_since_sci <- c(367 - 60, 367)
 
 sci <- sci %>% filter(!is.na(sex))
 
+
+# Medstat regions for Armin
+
+select(sci, id_swisci, survey = tp, medstat) %>% 
+  arrange(id_swisci, survey) %>% 
+  write.csv2(file.path("output", "medstat_regionen.csv"), row.names = FALSE)
+
+
 # Save dataset and clear workspace
 
 saveRDS(sci, file.path("workspace", "manually_imputed.Rdata"))

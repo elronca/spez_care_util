@@ -2,6 +2,7 @@
 library(tidyverse)
 library(splines)
 library(mice)
+library(emmeans)
 
 imp <- readRDS(file.path("workspace", "imputed_sci.RData"))
 
@@ -47,8 +48,9 @@ imp <- imp %>%
     severity = fct_relevel(as.factor(severity), c("incomplete para",  "incomplete tetra", "complete para", "complete tetra"))) %>% 
   
   mutate(age_cat = cut(age, breaks = c(0, 30, 45, 60, 75, Inf), labels = c("16-30", "31-45", "46-60","61-75", "75+")),
+         sex = fct_relevel(sex, c("male", "female")),
          dist_amb_check_up_cat = cut(dist_amb_check_up, breaks = c(0, 30, 60, 90, Inf), labels = c("0-30 min", "31-60 min", "60-90 min", "90+ min")),
-         dist_inpat_cat = cut(dist_inpat, breaks = c(0, 30, 60, 90, Inf), labels = c("0-30 min", "31-60 min", "60-90 min", "90+ min"))) %>% 
+         dist_inpat_cat = cut(dist_inpat, breaks = c(0, 30, 60, 90, Inf), labels = c("0-30 min", "31-60 min", "60-90 min", "90+ min"))) %>%
   as.mids()
 
 
@@ -56,7 +58,7 @@ imp <- imp %>%
 
 ## Identify best variables to predict specific outcomes 
 
-get_best_vars <- function(imp_data, predictor_vars, response_var, p_val_threshold = 0.05) {
+get_best_vars <- function(.imp_data, .predictor_vars, .response_var, p_val_threshold = 0.05) {
   
   
   if(F) { # For debugging
@@ -64,9 +66,9 @@ get_best_vars <- function(imp_data, predictor_vars, response_var, p_val_threshol
     soc_dem_all  <- c("sex", "age", "time_since_sci", "completeness", "etiology", 
                       "financial_hardship", "short_transp_barr", "long_transp_barr", "language", "degurba")
     
-    imp_data <-  imp
-    predictor_vars <- soc_dem_all
-    response_var <- "hc_parac_check"
+    .imp_data <-  imp
+    .predictor_vars <- soc_dem_all
+    .response_var <- "hc_parac_check"
     
   }
   
@@ -78,15 +80,15 @@ get_best_vars <- function(imp_data, predictor_vars, response_var, p_val_threshol
   # Those variables that are important predictors in every single imputed file
   # will be included in the next step
   
-  choose_vars <- function(imp_data, predictor_vars, response_var) {
+  choose_vars <- function(.imp_data, .predictor_vars, .response_var) {
     
-    predictors <-  str_c("~", str_c(predictor_vars, collapse = " + ")) %>% rlang::parse_expr(.)
+    predictors <-  str_c("~", str_c(.predictor_vars, collapse = " + ")) %>% rlang::parse_expr(.)
     
     scope <- list(upper = predictors, lower = ~1)
     
-    regres_formula <- str_c(response_var, " ~ 1")
+    regres_formula <- str_c(.response_var, " ~ 1")
     
-    fit <- mice::complete(imp_data, "all") %>% 
+    fit <- mice::complete(.imp_data, "all") %>% 
       map(~step(
         glm(formula = as.formula(regres_formula), family = binomial(link = 'logit'), data = .), 
         scope = scope, trace = 0))
@@ -101,7 +103,7 @@ get_best_vars <- function(imp_data, predictor_vars, response_var, p_val_threshol
     
   }
   
-  my_table_soc_dem <- choose_vars(imp_data, predictor_vars, response_var)
+  my_table_soc_dem <- choose_vars(.imp_data, .predictor_vars, .response_var)
   
   
   
@@ -139,17 +141,17 @@ get_best_vars <- function(imp_data, predictor_vars, response_var, p_val_threshol
     } else {
       
       # Regression formula with all the variables to include
-      formula_without <- str_c(response_var, " ~ ", str_c(all_include, collapse = " + "))
+      formula_without <- str_c(.response_var, " ~ ", str_c(all_include, collapse = " + "))
       
       # Regression formulas with all the variables to include plus the additinal candidate variable
-      formula_with <- maybe_include %>% str_c(str_c(all_include, collapse = " + "), ., sep = " + ") %>% str_c(response_var, " ~ ", .)
+      formula_with <- maybe_include %>% str_c(str_c(all_include, collapse = " + "), ., sep = " + ") %>% str_c(.response_var, " ~ ", .)
       
       # Fit regression with all the variables to include
-      fit.without <- with(imp_data, glm(formula = as.formula(formula_without), family = binomial(link = 'logit')))
+      fit.without <- with(.imp_data, glm(formula = as.formula(formula_without), family = binomial(link = 'logit')))
       fit.without$analyses
       
       # Fit multiple regression with all the variables to include plut the additinal candiadate variables
-      fit.with <- map(formula_with, ~with(imp_data, glm(formula = as.formula(.), family = binomial(link = 'logit'))))
+      fit.with <- map(formula_with, ~with(.imp_data, glm(formula = as.formula(.), family = binomial(link = 'logit'))))
       
       # Get the p values from the likelihood ratio test between the models with and without the candidate variables
       p_vals <- fit.with %>% map(~D3(., fit.without)) %>% map(~pluck(., "result")) %>% map_chr(4)
@@ -189,7 +191,7 @@ get_best_vars <- function(imp_data, predictor_vars, response_var, p_val_threshol
   
   
   # Run the function to choose the predictor variables
-  my_table_all <- choose_vars(imp_data, my_vars, response_var)
+  my_table_all <- choose_vars(.imp_data, my_vars, .response_var)
   
   # Evaluate the condidate variables
   vars_to_include <- evaluate_borderline_vars(my_table_all)
@@ -201,151 +203,175 @@ get_best_vars <- function(imp_data, predictor_vars, response_var, p_val_threshol
   
   return(vars_to_include)
   
-} 
+}
 
 
 
+## Modify the predictors for the regression models
+
+modify_predictors <- function(base_vars, remove_vars = NULL, add_vars = NULL, add_spline = NULL, as_formula = FALSE) {
+  
+  my_vars <- setdiff(c(base_vars, add_vars), remove_vars)
+  
+  if(length(add_spline) != 0) {
+    
+    my_vars <- str_c(str_c(my_vars, collapse = " + "), " + ", add_spline)
+    
+  }
+  
+  if(as_formula) {
+    
+    my_vars <- str_c(my_vars, collapse = " + ")
+    
+  }
+  
+  return(my_vars)
+  
+}
 
 
 ## Formula to get the estimates 
 
-get_estimates <- function(imp_data_long, formula, .exp = TRUE) {
+get_estimates <- function(.imp_data, .outcome_var, .formula_predictors, save_fit = FALSE) {
   
-  res <- imp_data_long %>% 
-    group_by(.imp) %>%
-    do(model = glm(formula = as.formula(formula), family = binomial(link = 'logit'), data = .)) %>%
-    as.list() %>%
-    .[[-1]] %>% 
-    pool() %>% 
-    summary(conf.int = T, exponentiate = .exp) %>% 
-    as_tibble(rownames = "variable") %>% 
-    mutate(p.value = round(p.value, 3)) %>% 
-    select(variable, estimate, LL = `2.5 %`, UL = `97.5 %`, p.value)
+  if(length(formula_predictors) != 1) stop("formula_predictors needs to be a string, not a vector")
   
-  if(.exp) {
-    return(rename(res, OR = estimate))
-  }else{
-    return(res)
+  
+  
+  fit <- with(.imp_data, glm(as.formula(str_c(.outcome_var, " ~ ", .formula_predictors)), family = binomial))
+  
+  res <- summary(pool(fit), conf.int = TRUE, exponentiate = TRUE) %>% 
+    as_tibble(rownames = "variable")
+  
+  res %>% 
+    mutate_at(vars(estimate, `2.5 %`, `97.5 %`), ~formatC(., format = "f", digits = 2)) %>% 
+    mutate(p.value = formatC(p.value, format = "f", digits = 3)) %>% 
+    mutate(OR = str_c(estimate, " (", `2.5 %`, " - ",`97.5 %`, ")")) %>% 
+    select(variable, OR, p.value) %>% 
+    slice(-1) %>%
+    write.csv2(file.path("output", str_c("reg_res_", .outcome_var, ".csv")), row.names = FALSE)
+  
+  
+  
+  if(save_fit) {
+    
+    saveRDS(fit, file.path("workspace", str_c("fit_", .outcome_var, ".RData")))
+    
   }
+  
+  return(res)
+  
   
 }
 
-get_res <- function(data, OR, LL, UL) {
-  
-  fC <- function(x) {formatC(x, format = "f", digits = 2)}
-  with(data, str_c(fC(OR), " (", fC(LL), " - ", fC(UL), ")"))
-  
-}
+
 
 
 # Check-up visits ----------------------------------------------------------------------------------------
 
+# Variables to test as predictors, secondary health conditions will be added automatically
 
-soc_dem_all  <- c("sex", "age_cat", "time_since_sci", "completeness", "etiology", 
-                  "financial_hardship", "long_transp_barr", "language", "degurba", 
-                  "dist_amb_check_up")
+soc_dem_all  <- c("sex", "age_cat", "time_since_sci", "completeness", "lesion_level", "etiology", 
+                  "financial_hardship", "short_transp_barr", "long_transp_barr", 
+                  "language", "degurba")
 
-# "short_transp_barr", 
+my_vars <- modify_predictors(soc_dem_all, add_vars = "dist_amb_check_up")
 
-best_vars_check_up <- get_best_vars(imp_data = imp, 
-                                    predictor_vars = soc_dem_all, 
-                                    response_var = "hc_parac_check", 
+
+# Test predictors for effect on outcome
+
+best_vars_check_up <- get_best_vars(.imp_data = imp, 
+                                    .predictor_vars = my_vars, 
+                                    .response_var = "hc_parac_check", 
                                     p_val_threshold = 0.05)
 
 
-imp_data_long <- mice::complete(imp, "long")
+# Chhose good predictors and make formula
 
-imp_data_long <- imp_data_long %>% mutate(sex = fct_relevel(sex, c("male", "female")))
+formula_predictors <- modify_predictors(best_vars_check_up, as_formula = TRUE)
 
-formula_reg <- "hc_parac_check ~ sex + age_cat + completeness + etiology + language + short_transp_barr + 
-problem_injury + problem_sexual + problem_ossification"
 
-formula_reg <- str_remove(formula_reg, "\n")
+# Save fit and table with effects of predictors on outcome measured as odds ratios
 
-check_up_OR <- get_estimates(imp_data_long = imp_data_long, formula = formula_reg, .exp = T)
+get_estimates(.imp_data = imp, 
+              .outcome_var = "hc_parac_check", 
+              .formula_predictors = formula_predictors,
+              save_fit = TRUE)
 
-mutate(check_up_OR, res = get_res(check_up_OR, OR, LL, UL)) %>% 
-  select(variable, res, p.value) %>% 
-  slice(-1) %>% 
-  write.csv2(file.path("output", "reg_res_check_up.csv"), row.names = FALSE)
-
-saveRDS(check_up_OR, file.path("workspace", "check_up_OR.RData"))
 
 # Outpatient visits -------------------------------------------------------
 
-outp <- mice::complete(imp, "long", include = TRUE) %>% 
+imp_outp <- mice::complete(imp, "long", include = TRUE) %>% 
   filter(hc_ambulant == 1) %>% 
   as.mids()
 
-# "short_transp_barr", 
+imp_outp$loggedEvents
 
-soc_dem_all  <- c("sex", "age_cat", "time_since_sci", "completeness", "etiology", 
-                  "financial_hardship", "long_transp_barr", "language", "degurba",
-                  "dist_amb_check_up_cat")
+soc_dem_all  <- c("sex", "age_cat", "time_since_sci", "completeness", "lesion_level", "etiology", 
+                  "financial_hardship", "short_transp_barr", "long_transp_barr", 
+                  "language", "degurba")
+
+my_vars <- modify_predictors(soc_dem_all, add_vars = "dist_amb_check_up_cat")
 
 
-best_vars_outp <- get_best_vars(imp_data = outp, 
-                                predictor_vars = soc_dem_all, 
-                                response_var = "hc_ambulant_parac", 
+best_vars_outp <- get_best_vars(.imp_data = imp_outp, 
+                                .predictor_vars = my_vars, 
+                                .response_var = "hc_ambulant_parac", 
                                 p_val_threshold = 0.05)
 
 
-outp_data_long <- mice::complete(outp, "long")
+formula_predictors <- modify_predictors(best_vars_outp, as_formula = TRUE)
 
-formula_reg <- "hc_ambulant_parac ~ completeness + dist_amb_check_up_cat + language + problem_bladder + problem_cancer + problem_spasticity"
-
-formula_reg <- str_remove(formula_reg, "\n")
-
-outp_OR <- get_estimates(imp_data_long = outp_data_long, formula = formula_reg, .exp = T)
-saveRDS(outp_OR, file.path("workspace", "outp_OR.RData"))
-
-mutate(outp_OR, res = get_res(outp_OR, OR, LL, UL)) %>% 
-  select(variable, res, p.value) %>% 
-  slice(-1) %>% 
-  write.csv2(file.path("output", "reg_res_outpatient.csv"), row.names = FALSE)
-
+get_estimates(.imp_data = imp_outp, 
+              .outcome_var = "hc_ambulant_parac", 
+              .formula_predictors = formula_predictors,
+              save_fit = TRUE)
 
 
 # Inpatient visits -------------------------------------------------------
 
-inpat <- mice::complete(imp, "long", include = TRUE) %>% 
+imp_inp <- mice::complete(imp, "long", include = TRUE) %>% 
   filter(hc_inpatient == 1) %>% 
   as.mids()
 
-# "short_transp_barr", 
+if(F) {
+  
+  imp_inp$data %>% names()
+  imp_inp$loggedEvents
+  
+}
 
-soc_dem_all  <- c("sex", "age_cat", "time_since_sci", "completeness", "etiology", 
-                  "financial_hardship", "long_transp_barr", "language", 
-                  "dist_inpat_cat")
+soc_dem_all  <- c("sex", "age_cat", "time_since_sci", "completeness", "lesion_level", "etiology", 
+                  "financial_hardship", "short_transp_barr", "long_transp_barr", 
+                  "language", "degurba")
 
-best_vars_inpat <- get_best_vars(imp_data = inpat, 
-                                 predictor_vars = soc_dem_all, 
-                                 response_var = "hc_inpatient_parac", 
+my_vars <- modify_predictors(soc_dem_all, add_vars = "dist_inpat_cat")
+
+best_vars_inpat <- get_best_vars(.imp_data = imp_inp, 
+                                 .predictor_vars = my_vars, 
+                                 .response_var = "hc_inpatient_parac", 
                                  p_val_threshold = 0.05)
 
+formula_predictors <- modify_predictors(best_vars_inpat, as_formula = TRUE)
 
-inpat_data_long <- mice::complete(inpat, "long")
-
-formula_reg <- "hc_inpatient_parac ~ sex + dist_inpat_cat + etiology + completeness + problem_diabetes"
-
-formula_reg <- str_remove(formula_reg, "\n")
-
-inp_OR <- get_estimates(imp_data_long = inpat_data_long, formula = formula_reg, .exp = T)
-
-mutate(inp_OR, res = get_res(inp_OR, OR, LL, UL)) %>% 
-  select(variable, res, p.value) %>% 
-  slice(-1) %>% 
-  write.csv2(file.path("output", "reg_res_inpatient.csv"), row.names = FALSE)
-
-saveRDS(inp_OR, file.path("workspace", "estim_inp.RData"))
+get_estimates(.imp_data = imp_inp, 
+              .outcome_var = "hc_inpatient_parac", 
+              .formula_predictors = formula_predictors,
+              save_fit = TRUE)
 
 
+# Save best vars ----------------------------------------------------------
 
-# Save estimates and imputed dataset --------------------------------------
+best_vars <- setNames(list(best_vars_check_up, best_vars_outp, best_vars_inpat), 
+                      c("best_vars_check_up", "best_vars_outp", "best_vars_inpat"))
 
-saveRDS(imp, file.path("workspace", "imputed_and_modified_ds.RData"))
+saveRDS(best_vars, file.path("workspace", "best_vars.RData"))
+
+
+
+# Clear workspace ---------------------------------------------------------
 
 rm("best_vars_check_up", "best_vars_inpat", "best_vars_outp", 
-  "check_up_OR", "formula_reg", "get_best_vars", "get_estimates", 
-  "get_res", "imp", "imp_data_long", "imp_long", "inp_OR", "inpat", 
-  "inpat_data_long", "outp", "outp_data_long", "outp_OR", "soc_dem_all")
+   "formula_predictors", "get_best_vars", "get_estimates", "imp", 
+   "imp_inp", "imp_long", "imp_outp", "modify_predictors", "my_vars", 
+   "soc_dem_all", "best_vars")

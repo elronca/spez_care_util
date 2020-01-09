@@ -110,7 +110,7 @@ get_pop_centroids <- function(i, my_intersects, my_crs, pop_dens_file, map_file)
 
 # Run function over all MedStat regions
 
-if(F) {
+if(FALSE) {
   
   pb <- progress_estimated(nrow(MS_spdf))
   
@@ -122,11 +122,11 @@ if(F) {
   
   names(my_coordinates) <- MS_spdf$MEDSTAT04
   
-  save(my_coordinates, file = file.path("workspace", "my_coordinates.Rdata"))
+  saveRDS(my_coordinates, file = file.path("workspace", "my_coordinates.Rdata"))
   
 }
 
-load(file.path("workspace", "my_coordinates.Rdata"))
+my_coordinates <- readRDS(file.path("workspace", "my_coordinates.Rdata"))
 
 
 # Extract the coordinates of the Medstat centroids
@@ -165,12 +165,12 @@ if(F) {
   ggmap::register_google("AIzaSyATu6r_ZkcS672g5B9T9HqdFktaKN_shhk")
   
   cent_coordinates <- geocode(SCI_centers$center_addr_string, output = "latlon", source = "google")
-  save(cent_coordinates, file = file.path("workspace", "cent_coordinates.RData"))
+  saveRDS(cent_coordinates, file.path("workspace", "cent_coordinates.RData"))
   
 }
 
 
-load(file.path("workspace", "cent_coordinates.RData"))
+cent_coordinates <- readRDS(file.path("workspace", "cent_coordinates.RData"))
 
 cent_addresses <- bind_cols(SCI_centers, cent_coordinates)
 cent_addresses.sp <- st_as_sf(x = cent_addresses, coords = c("lon", "lat"), crs = "+proj=longlat +datum=WGS84")
@@ -202,7 +202,7 @@ cent_addresses <- do.call("rbind", replicate(n_rows_MS, cent_addresses, simplify
 
 dist_cent <- bind_cols(MS_coordinates_cent, cent_addresses)
 
-if(F) {
+if(FALSE) {
   
   
   # We calculate the driving times using the google directions API ----------
@@ -286,11 +286,11 @@ if(F) {
     
     mutate(duration_min = duration / 60, distance_km = distance / 1000)
   
-  save(drv_dist_cent, file = file.path("workspace", "drv_dist_centers.RData"))
+  saveRDS(drv_dist_cent, file.path("workspace", "drv_dist_centers.RData"))
   
 }
 
-load(file.path("workspace", "drv_dist_centers.RData"))
+drv_dist_cent <- readRDS(file.path("workspace", "drv_dist_centers.RData"))
 
 
 

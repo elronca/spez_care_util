@@ -122,11 +122,13 @@ predictor_matrix[, outlist_hc] <- 0
 
 n_cores <- detectCores(all.tests = FALSE, logical = TRUE)
 
+n_imp <- if_else(n_cores <= 4, 2, 1)
+
 start_imp <- Sys.time()
 
 imp <- parlmice(data = my_data, 
                 predictorMatrix = predictor_matrix,
-                n.core = n_cores, cluster.seed = 1, n.imp.core = 1)
+                n.core = n_cores, cluster.seed = 1, n.imp.core = n_imp)
 
 end_imp <- Sys.time()
 
@@ -156,7 +158,7 @@ naniar::miss_summary(imp_long)["miss_var_summary"] %>%
 
 # Diagnostics -------------------------------------------------------------
 
-stripplot(imp, time_since_sci+dist_amb_check_up+dist_inpat ~.imp, jitter=T, layout=c(3,1))
+stripplot(imp, time_since_sci+dist_amb_check_up+dist_inpat ~.imp, jitter=T, layout=c(3, 1))
 
 densityplot(imp)
 
@@ -271,4 +273,4 @@ xyplot(imp, completeness ~ ps|as.factor(.imp), xlab = "Probability that record i
 rm("end_imp", "imp", "imp_long", "my_data", "n_cores", "other_vars_to_keep", 
   "outcome_vars", "outlist_all", "outlist_constant", "outlist_hc", 
   "outlist_scim", "predictor_matrix", "predictor_vars", "sci", 
-  "scim_over_20_per_mis", "scim_vars", "start_imp", "fit", "ps")
+  "scim_over_20_per_mis", "scim_vars", "start_imp", "fit", "ps", "n_imp")
