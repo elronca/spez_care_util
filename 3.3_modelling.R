@@ -1,17 +1,18 @@
 
 library(tidyverse)
-library(splines)
 library(mice)
 library(emmeans)
 
 imp <- readRDS(file.path("workspace", "imputed_sci.RData"))
 
+# Check the variables included in the imputed dataset ---------------------
 
-# Some descriptives -------------------------------------------------------
-
-imp_long <- imp %>% mice::complete("long", include = TRUE)
+imp_long <- mice::complete(imp, "long", include = TRUE)
 
 names(imp_long)
+
+
+# Check raw utilization rates of outcomes -------------------------------------
 
 imp_long %>% 
   filter(.imp == 1) %>% 
@@ -34,6 +35,7 @@ imp_long %>%
 # Relevel variables -------------------------------------------------------
 
 imp <- imp %>% 
+  
   mice::complete("long", include = TRUE) %>% 
   
   mutate_at(vars(lesion_level, completeness), as.character) %>% 
@@ -55,25 +57,45 @@ imp <- imp %>%
          sex = fct_relevel(sex, c("male", "female")),
          dist_amb_check_up_cat = cut(dist_amb_check_up, breaks = c(0, 30, 60, 90, Inf), labels = c("0-30 min", "31-60 min", "60-90 min", "90+ min")),
          dist_inpat_cat = cut(dist_inpat, breaks = c(0, 30, 60, 90, Inf), labels = c("0-30 min", "31-60 min", "60-90 min", "90+ min"))) %>%
+  
   as.mids()
 
 
 # Formulas ----------------------------------------------------------------
 
-## Identify best variables to predict specific outcomes 
+## Identify best variables to predict specific outcomes using a step wise procedure that tests all combinations of the provided variables 
+## in all datasets. 
+## Predictors that are significantly associated with the outcome on a significance level provided by the user (.p_val_threshold)
+## will be further tested using a Wald test and kept if it is associated with the variables that were associated with the 
+## outcome in all imputed datasets.
 
-get_best_vars <- function(.imp_data, .predictor_vars, .response_var, p_val_threshold = 0.05) {
-  
-  
+## Procedure is performed according to https://stefvanbuuren.name/fimd/sec-stepwise.html
 
-  # Choose best predictors that are provided via predictor vars argument
+## In a second step, additional variables can be provided (as vector) to test whether they provide any benefit over the model that was
+## defined in the first step
+
+get_best_vars <- function(.imp_data, .predictor_vars, .response_var, .reg_family = "binomial", .p_val_threshold = 0.05, .add_vars = NULL) {
   
-  # Those variables that are important predictors in every single imputed file
-  # will be included in the next step
+  # .imp_data in the regular (not long) format
+  # .predictor_vars, as vector of strings
+  # .response_var, the outcome variables as string
+  # .reg_family, family function of the glm provided as string
   
-  choose_vars <- function(.imp_data, .predictor_vars, .response_var) {
+  if(F) {
+    .imp_data <- imp
+    .predictor_vars <- my_predictors
+    .response_var <- "hc_parac_check"
+    .reg_family <- "binomial"
+    .p_val_threshold <- 0.05
+    .add_vars <- NULL
+  }
+ 
+  
+  test_predictors <- function(.imp_data, .predictor_vars, .response_var) {
     
-    predictors <-  str_c("~", str_c(.predictor_vars, collapse = " + ")) %>% rlang::parse_expr(.)
+    # Construct predictor part of formula (string, variables separated by a + )
+    
+    predictors <- str_c("~", str_c(.predictor_vars, collapse = " + ")) %>% rlang::parse_expr(.)
     
     scope <- list(upper = predictors, lower = ~1)
     
@@ -81,7 +103,7 @@ get_best_vars <- function(.imp_data, .predictor_vars, .response_var, p_val_thres
     
     fit <- mice::complete(.imp_data, "all") %>% 
       map(~step(
-        glm(formula = as.formula(regres_formula), family = binomial(link = 'logit'), data = .), 
+        glm(formula = as.formula(regres_formula), family = .reg_family, data = .), 
         scope = scope, trace = 0))
     
     formulas <- lapply(fit, formula)
@@ -94,71 +116,60 @@ get_best_vars <- function(.imp_data, .predictor_vars, .response_var, p_val_thres
     
   }
   
-  my_table_soc_dem <- choose_vars(.imp_data, .predictor_vars, .response_var)
+  votes_to_include <- test_predictors(.imp_data, .predictor_vars, .response_var)
   
   
   
   
-  # Now we evaluate and select predictors that were not important predictors in every single imputed dataset 
+  # Now we evaluate and select predictors that were not important predictors in every single imputed dataset
+  # We do that by fitting two models, one with the predictors that were significant in each imputed dataset
+  # and with the same predictors but an additional boarderline variable
+  # We define borderline predictors as predictors that were significantly associated with the outcome on
+  # a 5% significance level in more than half of the imputed datasets
   
   evaluate_borderline_vars <- function(candidate_vars) {
     
-    if(F) { # For debugging
-      
-      p_val_threshold <- 0.05
-      my_table_soc_dem <- my_table
-      candidate_vars <- my_table_soc_dem
-      
-      candidate_vars <- my_table_all
-      
-      maybe_include <- c("degurba", "time_since_sci")
-      
-    }
-    
-    
-    
-    
     var_sel <- mutate(candidate_vars, 
-                      include = as.integer(n == max(n)),
-                      test = as.integer(n >= max(n) / 2 & n != max(n))) %>% print()
+                      is_included = as.integer(n == max(n)),
+                      is_tested = as.integer(n >= max(n) / 2 & n != max(n))) %>% print()
     
-    all_include <- filter(var_sel, include == 1) %>% pull(votes)
-    maybe_include <- filter(var_sel, test == 1) %>% pull(votes)
+    include <- filter(var_sel, is_included == 1) %>% pull(votes)
+    maybe_include <- filter(var_sel, is_tested == 1) %>% pull(votes)
     
     if(length(maybe_include) == 0) {
       
-      return(all_include)
+      return(include)
       
     } else {
       
       # Regression formula with all the variables to include
-      formula_without <- str_c(.response_var, " ~ ", str_c(all_include, collapse = " + "))
+      formula_without <- str_c(.response_var, " ~ ", str_c(include, collapse = " + "))
       
       # Regression formulas with all the variables to include plus the additinal candidate variable
-      formula_with <- maybe_include %>% str_c(str_c(all_include, collapse = " + "), ., sep = " + ") %>% str_c(.response_var, " ~ ", .)
+      formula_with <- maybe_include %>% str_c(str_c(include, collapse = " + "), ., sep = " + ") %>% str_c(.response_var, " ~ ", .)
       
       # Fit regression with all the variables to include
-      fit.without <- with(.imp_data, glm(formula = as.formula(formula_without), family = "binomial"))
+      fit.without <- with(.imp_data, glm(formula = as.formula(formula_without), family = .reg_family))
       fit.without$analyses
       
       # Fit multiple regression with all the variables to include plut the additinal candiadate variables
-      fit.with <- map(formula_with, ~with(.imp_data, glm(formula = as.formula(.), family = "binomial")))
+      fit.with <- map(formula_with, ~with(.imp_data, glm(formula = as.formula(.), family = .reg_family)))
       
-      # Get the p values from the likelihood ratio test between the models with and without the candidate variables
-      p_vals <- fit.with %>% map(~D3(., fit.without)) %>% map(~pluck(., "result")) %>% map_chr(4)
+      # Get the p values from the Wald test between the models with and without the candidate variables
+      p_vals <- fit.with %>% map(~D1(., fit.without)) %>% map(~pluck(., "result")) %>% map_chr(4)
       
       # Show the candidate variables and the corresponding p values
       maybe_include_tested <- tibble(vars = maybe_include, p_vals = p_vals) %>% print()
       
       # Keep or remove the candidate variables depending on their effect in the regression model measured as p value
       # and depending on the predefined p value threshold 
-      maybe_include_kept <- filter(maybe_include_tested, p_vals < p_val_threshold) %>% pull(vars)
+      maybe_include_kept <- filter(maybe_include_tested, p_vals < .p_val_threshold) %>% pull(vars)
       
       
       # Return p values that were siginificantly associated with the outcome variables in the regression models with
       # all imputed datasets and the variables that were only significant in half or more of the datasets 
       
-      return(c(all_include, maybe_include_kept))
+      return(c(include, maybe_include_kept))
       
     }
     
@@ -166,33 +177,30 @@ get_best_vars <- function(.imp_data, .predictor_vars, .response_var, p_val_thres
   
   ## Run the function 
   
-  soc_dem_include <- evaluate_borderline_vars(my_table_soc_dem)
+  results_2nd_step <- evaluate_borderline_vars(votes_to_include)
   
   
+  ## In a second round we check whether some additional variables have an effect on the outcomes that we are
+  ## sure we are going to include (actually not 100% sure whether this is a valid approach)
   
-  
-  
-  # Check how well secondary health conditions predict the outcome, using the same algorithm as
-  # before for the socio-demographic factors and also including those socio-demographic facotrs
-  # that were best at predicting the outcomes
-  
-  shc_all <- mice::complete(imp, "all")[[1]] %>% names() %>% str_subset("problem")
-  
-  my_vars <- c(soc_dem_include, shc_all)
+  chosen_vars_and_add_vars <- c(results_2nd_step, .add_vars)
   
   
   # Run the function to choose the predictor variables
-  my_table_all <- choose_vars(.imp_data, my_vars, .response_var)
   
-  # Evaluate the condidate variables
-  vars_to_include <- evaluate_borderline_vars(my_table_all)
+  final_votes_to_include <- test_predictors(.imp_data, chosen_vars_and_add_vars, .response_var)
+  
+  
+  # Evaluate the additional predictors using Wald test
+  
+  my_vars_for_final_regression <- evaluate_borderline_vars(final_votes_to_include)
   
   
   ## This is the final output, the variables that were significant in all imputed datasets
   ## plus the candidate variabels that were significant in an additinal analysis using a
   ## likelihood ratio test.
   
-  return(vars_to_include)
+  return(my_vars_for_final_regression)
   
 }
 
@@ -237,8 +245,8 @@ get_estimates <- function(.imp_data, .outcome_var, .formula_predictors, save_fit
   }
   
   fit <- with(.imp_data, glm(as.formula(str_c(.outcome_var, " ~ ", .formula_predictors)), family = "binomial"))
-
-
+  
+  
   # Calculate p values for the different variables using a likelihood ratio test
   
   # Get all predictors
@@ -270,43 +278,43 @@ get_estimates <- function(.imp_data, .outcome_var, .formula_predictors, save_fit
   
   if(length(p_values[as.numeric(p_values) > 0.05]) != 0) {
     
-    cat("The variable",  names(p_values[as.numeric(p_values) > 0.05]), 
+    cat("The variable(s)",  names(p_values[as.numeric(p_values) > 0.05]), 
         "has/have a p value greater than 0.05 in the likelihood ratio test\n\n")
     
   }
   
   
   
-
-res <- summary(pool(fit), conf.int = TRUE, exponentiate = TRUE) %>% 
-  as_tibble(rownames = "variable")
-
-res %>% 
-  mutate_at(vars(estimate, `2.5 %`, `97.5 %`), ~formatC(., format = "f", digits = 2)) %>% 
-  mutate(p.value = formatC(p.value, format = "f", digits = 3)) %>% 
-  mutate(OR = str_c(estimate, " (", `2.5 %`, " \u2013 ",`97.5 %`, ")")) %>% 
-  select(variable, OR, p.value) %>% 
-  slice(-1) %>%
-  write.csv2(file.path("output", str_c("reg_res_", .outcome_var, ".csv")), row.names = FALSE)
-
-
-
-if(save_fit) {
   
-  saveRDS(fit, file.path("workspace", str_c("fit_", .outcome_var, ".RData")))
+  res <- summary(pool(fit), conf.int = TRUE, exponentiate = TRUE) %>% 
+    as_tibble(rownames = "variable")
   
-}
-
-if(save_p_values) {
+  res %>% 
+    mutate_at(vars(estimate, `2.5 %`, `97.5 %`), ~formatC(., format = "f", digits = 2)) %>% 
+    mutate(p.value = formatC(p.value, format = "f", digits = 3)) %>% 
+    mutate(OR = str_c(estimate, " (", `2.5 %`, " \u2013 ",`97.5 %`, ")")) %>% 
+    select(variable, OR, p.value) %>% 
+    slice(-1) %>%
+    write.csv2(file.path("output", str_c("reg_res_", .outcome_var, ".csv")), row.names = FALSE)
   
-  saveRDS(p_values, file.path("workspace", str_c("p_values_", .outcome_var, ".RData")))
   
-}
-
-
-return(list("regression results" = res, "likelihood ratio test" = p_values))
-
-
+  
+  if(save_fit) {
+    
+    saveRDS(fit, file.path("workspace", str_c("fit_", .outcome_var, ".RData")))
+    
+  }
+  
+  if(save_p_values) {
+    
+    saveRDS(p_values, file.path("workspace", str_c("p_values_", .outcome_var, ".RData")))
+    
+  }
+  
+  
+  return(list("regression results" = res, "likelihood ratio test" = p_values))
+  
+  
 }
 
 
@@ -317,6 +325,7 @@ soc_dem_all  <- c("sex", "age_cat", "time_since_sci_cat", "severity", "etiology"
                   "financial_hardship", "short_transp_barr", "long_transp_barr", 
                   "language", "degurba")
 
+shc_vars <- mice::complete(imp, "all")[[1]] %>% names() %>% str_subset("problem")
 
 
 
@@ -324,25 +333,40 @@ soc_dem_all  <- c("sex", "age_cat", "time_since_sci_cat", "severity", "etiology"
 
 # Variables to test as predictors, secondary health conditions will be added automatically
 
-
-
-my_vars <- modify_predictors(soc_dem_all, add_vars = "dist_amb_check_up")
+my_predictors <- modify_predictors(soc_dem_all, add_vars = "dist_amb_check_up")
 
 
 # Test predictors for effect on outcome
 
 best_vars_check_up <- get_best_vars(.imp_data = imp, 
-                                    .predictor_vars = my_vars, 
+                                    .predictor_vars = my_predictors, 
                                     .response_var = "hc_parac_check", 
-                                    p_val_threshold = 0.05)
+                                    .p_val_threshold = 0.05,
+                                    .add_vars = shc_vars)
 
 
 # Chhose good predictors and make formula
 
-form_pred_check_up <- modify_predictors(best_vars_check_up, as_formula = TRUE, remove_vars = NULL)
+form_pred_check_up <- modify_predictors(best_vars_check_up, as_formula = TRUE, 
+                                        remove_vars = NULL,
+                                        add_vars = NULL)
 
 
 # Save fit and table with effects of predictors on outcome measured as odds ratios
+
+get_estimates(.imp_data = imp, 
+              .outcome_var = "hc_parac_check", 
+              .formula_predictors = form_pred_check_up,
+              save_fit = F,
+              save_p_values = F)
+
+
+# The variables problem_injury and problem_ossification has/have a p value greater than 0.05 in the likelihood ratio test
+# They are therefore removed from the final model
+
+form_pred_check_up <- modify_predictors(best_vars_check_up, 
+                                        as_formula = TRUE,
+                                        remove_vars = c("problem_injury", "problem_ossification"))
 
 get_estimates(.imp_data = imp, 
               .outcome_var = "hc_parac_check", 
@@ -362,20 +386,39 @@ imp_outp$loggedEvents
 
 my_vars <- modify_predictors(soc_dem_all, add_vars = c("dist_amb_check_up_cat", "hc_ambulant_num_cat"))
 
-
 best_vars_outp <- get_best_vars(.imp_data = imp_outp, 
                                 .predictor_vars = my_vars, 
                                 .response_var = "hc_ambulant_parac", 
-                                p_val_threshold = 0.05)
+                                .p_val_threshold = 0.05,
+                                .add_vars = shc_vars)
 
 
-form_pred_outpat <- modify_predictors(best_vars_outp, remove_vars = NULL, add_vars = NULL, as_formula = TRUE)
+## These variables are added as we want to have them in every model
+
+form_pred_outpat <- modify_predictors(best_vars_outp, remove_vars = NULL, add_vars = c("age_cat", "sex", "severity"), as_formula = TRUE)
+
+get_estimates(.imp_data = imp_outp, 
+              .outcome_var = "hc_ambulant_parac", 
+              .formula_predictors = form_pred_outpat,
+              save_fit = F,
+              save_p_values = F)
+
+
+# The variable problem_bladder and etiology have a p value greater than 0.05 in the likelihood ratio test and is therefore 
+# removed from the final regresion
+
+form_pred_outpat <- modify_predictors(best_vars_outp, 
+                                      remove_vars = c("problem_bladder", "etiology"), 
+                                      add_vars = c("age_cat", "sex", "severity"), 
+                                      as_formula = TRUE)
 
 get_estimates(.imp_data = imp_outp, 
               .outcome_var = "hc_ambulant_parac", 
               .formula_predictors = form_pred_outpat,
               save_fit = TRUE,
               save_p_values = TRUE)
+
+
 
 # Inpatient visits -------------------------------------------------------
 
@@ -385,20 +428,27 @@ imp_inp <- mice::complete(imp, "long", include = TRUE) %>%
 
 imp_inp$loggedEvents
 
-complete(imp_inp, "long") %>% select(severity) %>% as_tibble
-complete(imp_inp, "long") %>% select(hc_inpatient_days, hc_inpatient_days_cat)
-
-complete(imp_inp, "long") %>% select(time_since_sci, time_since_sci_cat)
-
-
 my_vars <- modify_predictors(soc_dem_all, add_vars = c("dist_inpat_cat", "hc_inpatient_days_cat", "hc_inpatient_num_cat"))
 
 best_vars_inpat <- get_best_vars(.imp_data = imp_inp, 
                                  .predictor_vars = my_vars, 
                                  .response_var = "hc_inpatient_parac", 
-                                 p_val_threshold = 0.05)
+                                 .p_val_threshold = 0.05,
+                                 .add_vars = shc_vars)
 
-form_pred_inpat <- modify_predictors(best_vars_inpat, as_formula = TRUE, remove_vars = NULL)
+form_pred_inpat <- modify_predictors(best_vars_inpat, as_formula = TRUE, add_vars = "age_cat", remove_vars = NULL)
+
+get_estimates(.imp_data = imp_inp, 
+              .outcome_var = "hc_inpatient_parac", 
+              .formula_predictors = form_pred_inpat,
+              save_fit = F,
+              save_p_values = F)
+
+# The variable problem_contractures has/have a p value greater than 0.05 in the likelihood ratio test
+
+form_pred_inpat <- modify_predictors(best_vars_inpat, as_formula = TRUE, 
+                                     remove_vars = "problem_contractures",
+                                     add_vars = "age_cat")
 
 get_estimates(.imp_data = imp_inp, 
               .outcome_var = "hc_inpatient_parac", 
@@ -409,16 +459,17 @@ get_estimates(.imp_data = imp_inp,
 
 # Save best vars ----------------------------------------------------------
 
-best_vars <- list(form_pred_check_up, form_pred_outpat, form_pred_inpat) %>% 
+final_vars <- list(form_pred_check_up, form_pred_outpat, form_pred_inpat) %>% 
   map(~unlist(str_split(.," \\+ "))) %>% 
   set_names(c("form_pred_check_up", "form_pred_outpat", "form_pred_inpat"))
 
-saveRDS(best_vars, file.path("workspace", "best_vars.RData"))
+saveRDS(final_vars, file.path("workspace", "final_vars.RData"))
 
 
 # Clear workspace ---------------------------------------------------------
 
-rm("best_vars", "best_vars_check_up", "best_vars_inpat", "best_vars_outp", 
+rm("final_vars", "best_vars_check_up", "best_vars_inpat", "best_vars_outp", 
   "form_pred_check_up", "form_pred_inpat", "form_pred_outpat", 
   "get_best_vars", "get_estimates", "imp", "imp_inp", "imp_long", 
-  "imp_outp", "modify_predictors", "my_vars", "soc_dem_all")
+  "imp_outp", "modify_predictors", "my_vars", "soc_dem_all",
+  "my_predictors", "shc_vars")

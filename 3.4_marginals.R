@@ -13,7 +13,7 @@ p_ambulant <- readRDS(file.path("workspace", "p_values_hc_ambulant_parac.RData")
 fit_inpatient <- readRDS(file.path("workspace", "fit_hc_inpatient_parac.RData"))
 p_inpatient <- readRDS(file.path("workspace", "p_values_hc_inpatient_parac.RData"))
 
-best_vars <- readRDS(file.path("workspace", "best_vars.RData"))
+final_vars <- readRDS(file.path("workspace", "final_vars.RData"))
 
 sci <- readRDS(file.path("workspace", "outcome_vars_prepared.Rdata"))
 
@@ -65,39 +65,39 @@ get_final_table <- function(.raw_table, .raw_data, .outcome) {
 
 # Check up
 
-names(best_vars$form_pred_check_up) <- best_vars$form_pred_check_up
+names(final_vars$form_pred_check_up) <- final_vars$form_pred_check_up
 
-pmm_check <- best_vars$form_pred_check_up %>% 
+emm_check <- final_vars$form_pred_check_up %>% 
   map_dfr(get_marginals, .fit = fit_check, .p_vals = p_check, .id = "variable") %>% 
   print(n = 30)
 
-check_final <- get_final_table(.raw_table = pmm_check, .raw_data = sci, .outcome = "hc_parac_check")
+check_final <- get_final_table(.raw_table = emm_check, .raw_data = sci, .outcome = "hc_parac_check")
 
 
 # Outpatient
 
-names(best_vars$form_pred_outpat) <- best_vars$form_pred_outpat
+names(final_vars$form_pred_outpat) <- final_vars$form_pred_outpat
 
-pmm_outp <- best_vars$form_pred_outpat %>% 
+emm_outp <- final_vars$form_pred_outpat %>% 
   map_dfr(get_marginals, .fit = fit_ambulant, .p_vals = p_ambulant, .id = "variable") %>% 
   print(n = 30)
 
 
 outp_data <- filter(sci, hc_ambulant == 1)
-outp_final <- get_final_table(.raw_table = pmm_outp, .raw_data = outp_data, .outcome = "hc_ambulant_parac")
+outp_final <- get_final_table(.raw_table = emm_outp, .raw_data = outp_data, .outcome = "hc_ambulant_parac")
 
 
 # Inpatient
 
-names(best_vars$form_pred_inpat) <- best_vars$form_pred_inpat
+names(final_vars$form_pred_inpat) <- final_vars$form_pred_inpat
 
-pmm_inp <- best_vars$form_pred_inpat %>% 
+emm_inp <- final_vars$form_pred_inpat %>% 
   map_dfr(get_marginals, .fit = fit_inpatient, .p_vals = p_inpatient, .id = "variable") %>% 
   print(n = 30)
 
 inpat_data <- filter(sci, hc_inpatient == 1)
 
-inpat_final <- get_final_table(.raw_table = pmm_inp, .raw_data = inpat_data, .outcome = "hc_inpatient_parac")
+inpat_final <- get_final_table(.raw_table = emm_inp, .raw_data = inpat_data, .outcome = "hc_inpatient_parac")
 
 
 
@@ -110,10 +110,10 @@ raw_final_table <- full_join(check_final, outp_final, by = c("variable", "catego
          outpatient = prob.y, p_val_op = `p value.y`, 
          inpatient = prob, p_val_ip = `p value`)
 
+unique(raw_final_table$variable)
+
 variable_order <- c("all", "sex", "age_cat", "severity", "etiology", "language", 
-                    "problem_sexual", "problem_spasticity", "problem_injury", "problem_ossification", 
-                    "problem_bladder", "problem_contractures",
-                    "dist_amb_check_up_cat", 
+                    "problem_sexual", "problem_spasticity", "dist_amb_check_up_cat", 
                     "hc_ambulant_num_cat", "hc_inpatient_num_cat", "hc_inpatient_days_cat")
 
 final_table <- raw_final_table %>% 
