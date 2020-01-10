@@ -8,6 +8,7 @@ library(parallel)
 
 sci <- readRDS(file.path("workspace", "outcome_vars_prepared.Rdata"))
 
+names(sci) %>% str_subset("hc_amb")
 
 naniar::miss_summary(sci)["miss_var_summary"] %>% unnest(cols = c(miss_var_summary)) %>% print(n = 100)
 naniar::miss_summary(sci)["miss_case_summary"] %>% unnest(cols = c(miss_case_summary)) 
@@ -30,7 +31,8 @@ predictor_vars <- c("sex", "age", "time_since_sci", "lesion_level", "completenes
                     "problem_ossification", "problem_bladder", "problem_bowel", "problem_dysreflexia", 
                     "problem_hypotension", "problem_circulatory", "problem_diabetes", "problem_heart", 
                     "problem_cancer", "problem_depression", "problem_pain", "scim_20", 
-                    "dist_amb_check_up", "dist_inpat", "language", "degurba")
+                    "dist_amb_check_up", "dist_inpat", "language", "degurba", "hc_inpatient_days", 
+                    "hc_inpatient_num", "hc_ambulant_num")
 
 sci <- sci %>% mutate_at(vars(starts_with("problem_")), as.factor)
 sci$scim_rasch <- as.numeric(sci$scim_rasch)
@@ -99,7 +101,6 @@ outlist_scim <- flux(select(sci, -outlist_constant)) %>%
   filter(outflux < 0.9) %>% 
   pull(variable)
 
-outlist_hc <- sci %>% names %>% str_subset("hc_") %>% str_subset("parac", negate = T)
 
 outlist_all <- unique(c(outlist_constant, setdiff(outlist_scim, "scim_20")))
 
@@ -109,8 +110,9 @@ mice::fluxplot(my_data)
 
 predictor_matrix <- make.predictorMatrix(data = my_data, blocks = make.blocks(my_data))
 
-predictor_matrix[, "hc_inpatient_parac"] <- 0
-predictor_matrix[, outlist_hc] <- 0
+# outlist_hc <- sci %>% names %>% str_subset("hc_") %>% str_subset("parac", negate = T)
+# predictor_matrix[, "hc_inpatient_parac"] <- 0
+# predictor_matrix[, outlist_hc] <- 0
 
 
 
@@ -271,6 +273,6 @@ xyplot(imp, completeness ~ ps|as.factor(.imp), xlab = "Probability that record i
 # https://stefvanbuuren.name/fimd/sec-modelform.html
 
 rm("end_imp", "imp", "imp_long", "my_data", "n_cores", "other_vars_to_keep", 
-  "outcome_vars", "outlist_all", "outlist_constant", "outlist_hc", 
+  "outcome_vars", "outlist_all", "outlist_constant", 
   "outlist_scim", "predictor_matrix", "predictor_vars", "sci", 
   "scim_over_20_per_mis", "scim_vars", "start_imp", "fit", "ps", "n_imp")
