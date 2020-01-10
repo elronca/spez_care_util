@@ -12,26 +12,6 @@ imp_long <- mice::complete(imp, "long", include = TRUE)
 names(imp_long)
 
 
-# Check raw utilization rates of outcomes -------------------------------------
-
-imp_long %>% 
-  filter(.imp == 1) %>% 
-  mutate_at(vars(starts_with("hc_")), ~as.integer(as.character(.))) %>% 
-  
-  summarize(n = n(),
-            n_check_up = sum(hc_parac_check),
-            n_amb = sum(hc_ambulant),
-            n_amb_parac = sum(hc_ambulant_parac),
-            n_inp = sum(hc_inpatient),
-            n_inp_parac = sum(hc_inpatient_parac)) %>% 
-  pivot_longer(everything(), names_to = "variable", values_to = "n_visits") %>% 
-  mutate(prop_util = 100 * n_visits / 1530) %>% 
-  mutate(prop_util_2 = case_when(
-    variable == "n_amb_parac" ~ 100 * 235 / 713,
-    variable == "n_inp_parac" ~ 100 * 178 / 403,
-    TRUE ~ NA_real_))
-
-
 # Relevel variables -------------------------------------------------------
 
 imp <- imp %>% 

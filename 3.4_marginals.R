@@ -113,8 +113,10 @@ raw_final_table <- full_join(check_final, outp_final, by = c("variable", "catego
 unique(raw_final_table$variable)
 
 variable_order <- c("all", "sex", "age_cat", "severity", "etiology", "language", 
-                    "problem_sexual", "problem_spasticity", "dist_amb_check_up_cat", 
+                    "problem_sexual", "problem_spasticity", "problem_cancer","dist_amb_check_up_cat", 
                     "hc_ambulant_num_cat", "hc_inpatient_num_cat", "hc_inpatient_days_cat")
+
+saveRDS(variable_order, file.path("workspace", "vars_for_table_1.R"))
 
 final_table <- raw_final_table %>% 
   mutate(variable = fct_relevel(variable, variable_order)) %>% 
@@ -125,6 +127,7 @@ final_table <- raw_final_table %>%
   group_by(variable_temp) %>% 
   mutate(variable  = if_else(duplicated(variable), "", as.character(variable))) %>% 
   ungroup() %>% 
-  select(-variable_temp)
+  select(-variable_temp) %>% 
+  print(n = 40)
 
-write.csv2(final_table, file.path("output", "table_pred_ma_me.csv"), row.names = FALSE)
+write.csv2(final_table, file.path("output", "table_est_ma_me.csv"), row.names = FALSE)
