@@ -17,6 +17,8 @@ sci %>% slice(1499) %>% glimpse()
 sci %>% slice(1499) %>% add_n_miss %>% pull(n_miss_all)
 sci %>% slice(1499) %>% add_prop_miss %>% pull(prop_miss_all)
 
+names(sci) %>% str_subset("inpatient")
+
 
 
 # Variable selection ------------------------------------------------------
@@ -47,7 +49,7 @@ select(sci, predictor_vars) %>% miss_summary %>% pluck("miss_var_summary") %>% .
 
 # Outcome vars
 
-outcome_vars <- c("hc_ambulant", "hc_inpatient", "hc_ambulant_parac", "hc_parac_check", "hc_inpatient_parac", "hc_parac_check")
+outcome_vars <- c("hc_ambulant", "hc_inpatient", "hc_parac_check", "hc_ambulant_parac", "hc_inpatient_parac")
 sci <- sci %>% mutate_at(vars(outcome_vars), as.factor)
 
 select(sci, outcome_vars) %>% miss_summary %>% pluck("miss_var_summary")
@@ -110,11 +112,10 @@ mice::fluxplot(my_data)
 
 predictor_matrix <- make.predictorMatrix(data = my_data, blocks = make.blocks(my_data))
 
-# outlist_hc <- sci %>% names %>% str_subset("hc_") %>% str_subset("parac", negate = T)
-# predictor_matrix[, "hc_inpatient_parac"] <- 0
-# predictor_matrix[, outlist_hc] <- 0
 
+# These variables won't be used as predictors in the imputation (columns are the variables that impute the rows)
 
+predictor_matrix[, c("hc_ambulant_num", "hc_inpatient_num", "hc_inpatient_days")] <- 0L
 
 
 # Define variables not to be imputed -----------------------------------------
@@ -130,7 +131,10 @@ start_imp <- Sys.time()
 
 imp <- parlmice(data = my_data, 
                 predictorMatrix = predictor_matrix,
-                n.core = n_cores, cluster.seed = 1, n.imp.core = n_imp)
+                defaultMethod = c("rf", "logreg", "polyreg", "polr"),
+                n.core = n_cores, 
+                cluster.seed = 1, 
+                n.imp.core = n_imp)
 
 end_imp <- Sys.time()
 
@@ -145,22 +149,38 @@ imp <- mice::complete(imp, "long", include = TRUE) %>%
   mutate_if(is.factor, ~factor(., ordered = FALSE)) %>% 
   as.mids()
 
+imp_2 <- imp
+
 saveRDS(imp, file.path("workspace", "imputed_sci.RData"))
+save(imp_2, file = file.path("workspace", "imputed_sci_2.RData"))
 
 imp_long <- mice::complete(imp, "long")
 
-imp_long %>% 
-  group_by(.imp) %>% 
-  summarize(n_NA = sum(is.na(completeness)))
+imp_long %>% pull(.imp) %>% unique()
 
 naniar::miss_summary(imp_long)["miss_var_summary"] %>% 
   unnest(cols = c(miss_var_summary)) %>% 
   print(n = 75)
 
+imp_long %>% 
+  filter(hc_ambulant == 1) %>% 
+  pull(hc_ambulant_num) %>% 
+  table(useNA = "always")
+
+imp_long %>% 
+  filter(hc_inpatient == 1) %>% 
+  pull(hc_inpatient_num) %>% 
+  table(useNA = "always")
+
+imp_long %>% 
+  filter(hc_inpatient == 1) %>% 
+  pull(hc_inpatient_days) %>% 
+  table(useNA = "always")
+
 
 # Diagnostics -------------------------------------------------------------
 
-stripplot(imp, time_since_sci+dist_amb_check_up+dist_inpat ~.imp, jitter=T, layout=c(3, 1))
+stripplot(imp, hc_ambulant_num+hc_inpatient_num+hc_inpatient_days ~.imp, jitter=T, layout=c(3, 1))
 
 densityplot(imp)
 
@@ -272,7 +292,7 @@ xyplot(imp, completeness ~ ps|as.factor(.imp), xlab = "Probability that record i
 
 # https://stefvanbuuren.name/fimd/sec-modelform.html
 
-rm("end_imp", "imp", "imp_long", "my_data", "n_cores", "other_vars_to_keep", 
+rm("end_imp", "imp_long", "my_data", "n_cores", "other_vars_to_keep", 
   "outcome_vars", "outlist_all", "outlist_constant", 
   "outlist_scim", "predictor_matrix", "predictor_vars", "sci", 
   "scim_over_20_per_mis", "scim_vars", "start_imp", "fit", "ps", "n_imp")

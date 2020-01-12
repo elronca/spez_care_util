@@ -1,18 +1,17 @@
 
 library(tidyverse)
 library(mice)
-library(emmeans)
 
 imp <- readRDS(file.path("workspace", "imputed_sci.RData"))
 
-# Check the variables included in the imputed dataset ---------------------
-
-imp_long <- mice::complete(imp, "long", include = TRUE)
-
-names(imp_long)
-
 
 # Relevel variables -------------------------------------------------------
+
+n_amb_visits <- imp %>% 
+  mice::complete("long", include = TRUE) %>% 
+  filter(hc_ambulant == 1) %>% filter(hc_ambulant_num == 0) %>% 
+  nrow() %>% 
+  sample(1:5, ., replace = T)
 
 imp <- imp %>% 
   
@@ -26,7 +25,9 @@ imp <- imp %>%
     lesion_level == "tetraplegia" & completeness == "incomplete" ~ "incomplete tetra",
     lesion_level == "tetraplegia" & completeness == "complete" ~ "complete tetra",
     TRUE ~ NA_character_),
+    
     completeness = fct_relevel(as.factor(completeness), "incomplete", "complete"),
+    
     severity = fct_relevel(as.factor(severity), c("incomplete para",  "incomplete tetra", "complete para", "complete tetra"))) %>% 
   
   mutate(age_cat = cut(age, breaks = c(0, 30, 45, 60, 75, Inf), labels = c("16-30", "31-45", "46-60","61-75", "75+")),
@@ -36,9 +37,15 @@ imp <- imp %>%
          hc_inpatient_days_cat = cut(hc_inpatient_days, breaks = c(-1, 5, 20, Inf), labels = c("1-5", "6-20", "21+")),
          sex = fct_relevel(sex, c("male", "female")),
          dist_amb_check_up_cat = cut(dist_amb_check_up, breaks = c(0, 30, 60, 90, Inf), labels = c("0-30 min", "31-60 min", "60-90 min", "90+ min")),
-         dist_inpat_cat = cut(dist_inpat, breaks = c(0, 30, 60, 90, Inf), labels = c("0-30 min", "31-60 min", "60-90 min", "90+ min"))) %>%
-  
-  as.mids()
+         dist_inpat_cat = cut(dist_inpat, breaks = c(0, 30, 60, 90, Inf), labels = c("0-30 min", "31-60 min", "60-90 min", "90+ min")))
+
+imp[c(imp$hc_ambulant %in% 1L & imp$hc_ambulant_num %in% 0L), "hc_ambulant_num"] <- n_amb_visits
+
+imp <- as.mids(imp)
+
+mice::complete(imp, "long") %>% filter(hc_inpatient == 1) %>% pull(hc_inpatient_num) %>% table(useNA = "always")
+mice::complete(imp, "long") %>% filter(hc_inpatient == 1) %>% pull(hc_inpatient_days) %>% table(useNA = "always")
+mice::complete(imp, "long") %>% filter(hc_ambulant == 1) %>% pull(hc_ambulant_num) %>% table(useNA = "always")
 
 
 # Formulas ----------------------------------------------------------------
@@ -325,10 +332,10 @@ best_vars_check_up <- get_best_vars(.imp_data = imp,
                                     .add_vars = shc_vars)
 
 
-# Chhose good predictors and make formula
+# Choose good predictors and make formula
 
 form_pred_check_up <- modify_predictors(best_vars_check_up, as_formula = TRUE, 
-                                        remove_vars = NULL,
+                                        remove_vars = "short_transp_barr",
                                         add_vars = NULL)
 
 
@@ -346,7 +353,7 @@ get_estimates(.imp_data = imp,
 
 form_pred_check_up <- modify_predictors(best_vars_check_up, 
                                         as_formula = TRUE,
-                                        remove_vars = c("problem_injury", "problem_ossification"))
+                                        remove_vars = c("problem_diabetes"))
 
 get_estimates(.imp_data = imp, 
               .outcome_var = "hc_parac_check", 
@@ -388,7 +395,7 @@ get_estimates(.imp_data = imp_outp,
 # removed from the final regresion
 
 form_pred_outpat <- modify_predictors(best_vars_outp, 
-                                      remove_vars = c("problem_bladder", "etiology"), 
+                                      remove_vars = c("problem_bladder", "problem_diabetes"), 
                                       add_vars = c("age_cat", "sex", "severity"), 
                                       as_formula = TRUE)
 
@@ -427,7 +434,7 @@ get_estimates(.imp_data = imp_inp,
 # The variable problem_contractures has/have a p value greater than 0.05 in the likelihood ratio test
 
 form_pred_inpat <- modify_predictors(best_vars_inpat, as_formula = TRUE, 
-                                     remove_vars = "problem_contractures",
+                                     remove_vars = c("problem_diabetes", "problem_heart"),
                                      add_vars = "age_cat")
 
 get_estimates(.imp_data = imp_inp, 
@@ -450,6 +457,6 @@ saveRDS(final_vars, file.path("workspace", "final_vars.RData"))
 
 rm("final_vars", "best_vars_check_up", "best_vars_inpat", "best_vars_outp", 
   "form_pred_check_up", "form_pred_inpat", "form_pred_outpat", 
-  "get_best_vars", "get_estimates", "imp", "imp_inp", "imp_long", 
+  "get_best_vars", "get_estimates", "imp", "imp_inp",
   "imp_outp", "modify_predictors", "my_vars", "soc_dem_all",
   "my_predictors", "shc_vars")

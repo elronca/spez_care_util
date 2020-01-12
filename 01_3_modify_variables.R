@@ -70,11 +70,13 @@ select(sci, matches("problem_")) %>% colSums(na.rm = T)
 
 # Recode paracenter utilization -------------------------------------------
 
-sci <- sci %>% 
-  mutate_at(vars(starts_with("hc_paracenter")), ~if_else(. %in% c("777", "888", "999", "unknown"), NA_character_, .)) %>% 
-  mutate_at(vars(starts_with("hc_paracenter")), ~as.integer(.))
+parac_vars <- str_subset(names(sci), "hc_paracenter")
 
-select(sci, starts_with("hc_paracenter")) %>% 
+sci <- sci %>% 
+  mutate_at(parac_vars, ~if_else(. %in% c("777", "888", "999", "unknown"), NA_character_, .)) %>% 
+  mutate_at(parac_vars, ~as.integer(.))
+
+select(sci, parac_vars) %>% 
   pivot_longer(everything(), names_to = "center_var", values_to = "visits") %>% 
   count(center_var, visits) %>% 
   print(n = 38)
@@ -83,14 +85,30 @@ select(sci, starts_with("hc_paracenter")) %>%
 # If all specific paracenter variables are NA and if the hc_paracenter is not 1 then hc_paracenter becomes 0 
 
 table(sci$hc_paracenter, useNA = "always")
-sci <- sci %>% mutate(hc_paracenter = if_else(pmap_lgl(select(., starts_with("hc_paracenter_")), ~all(is.na(c(...)))) & !hc_paracenter %in% 1L, 0L, hc_paracenter))
+sci <- sci %>% mutate(hc_paracenter = if_else(pmap_lgl(select(., parac_vars), ~all(is.na(c(...)))) & !hc_paracenter %in% 1L, 0L, hc_paracenter))
 table(sci$hc_paracenter, useNA = "always")
 
 
 # If any of the specific paracenter variables are larger than zero then hc_paracenter becomes 1
 
 table(sci$hc_paracenter, useNA = "always")
-sci <- sci %>% mutate(hc_paracenter = if_else(pmap_lgl(select(., starts_with("hc_paracenter_")), ~any(c(...) > 0)) & is.na(hc_paracenter), 1L, hc_paracenter))
+
+if(F) { # Test whether coding is valid
+  
+  sci %>% 
+    mutate(hc_paracenter = if_else(pmap_lgl(select(., parac_vars), ~any(c(...) > 0)) & is.na(hc_paracenter), 999L, hc_paracenter)) %>% 
+    filter(hc_paracenter == 999) %>% 
+    select(id_swisci, parac_vars, -hc_paracenter) %>% 
+    pivot_longer(starts_with("hc_paracenter"), names_to = "vars", values_to = "values") %>% 
+    mutate(values = if_else(is.na(values), "NA", "1")) %>% 
+    group_by(id_swisci) %>% 
+    distinct(values, .keep_all = TRUE) %>% 
+    print(n = 100)
+  
+}
+
+sci <- sci %>% mutate(hc_paracenter = if_else(pmap_lgl(select(., parac_vars), ~any(c(...) > 0)) & is.na(hc_paracenter), 1L, hc_paracenter))
+
 table(sci$hc_paracenter, useNA = "always")
 
 
@@ -104,7 +122,7 @@ select(sci, starts_with("hc_paracenter_")) %>% sapply(function(x) sum(is.na(x)))
 
 vars_inpatient_paracenter <- names(sci) %>% str_subset("inpat") %>% str_subset("paracenter")
 
-select(sci, vars_inpatient_paracenter) %>% 
+select(sci, parac_inpat_vars) %>% 
   pivot_longer(everything(), names_to = "center_var", values_to = "visits") %>% 
   count(center_var, visits) %>% 
   print(n = 17)
@@ -117,6 +135,12 @@ sci <- sci %>%
 # If we have a NA in hc_inpatient but not in hc_inpatient_num/days and also there are no zeros indicated in these variables, 
 # then we recode this variable to be 1
 
+if(F) { # Just to check what happens -> nothing
+  select(sci, hc_inpatient, hc_inpatient_num, hc_inpatient_days) %>% 
+  filter(is.na(hc_inpatient)) %>% 
+  summarise_all(~sum(is.na(.)))
+}
+
 table(sci$hc_inpatient, useNA = "always")
 sci <- sci %>% mutate(hc_inpatient = if_else(is.na(hc_inpatient) & all(is.na(na_if(select(., hc_inpatient_num, hc_inpatient_days), 0))), 1L, hc_inpatient))
 table(sci$hc_inpatient, useNA = "always")
@@ -124,23 +148,22 @@ table(sci$hc_inpatient, useNA = "always")
 
 # If all records are NA then we guess that the respondent have never been to the hospital
 
+select(sci, starts_with("hc_inpatient"))
+
 table(sci$hc_inpatient, useNA = "always")
 sci <- sci %>% mutate_at(vars(starts_with("hc_inpatient")), ~if_else(is.na(hc_inpatient) & is.na(hc_inpatient_num) & is.na(hc_inpatient_days), 0L, .))
 table(sci$hc_inpatient, useNA = "always")
 
+
 # We recode the number of inpatient visits and stays as 0 if there hasn't been indicated that there were any visits at all
 
-select(sci, hc_inpatient_num, hc_inpatient_days) %>% 
-  pivot_longer(everything(), names_to = "center_var", values_to = "visits") %>% 
-  count(center_var, visits) %>%
-  filter(is.na(visits) | visits == 0)
+select(sci, starts_with("hc_inpatient")) %>% 
+  filter(hc_inpatient %in% 0 & (!is.na(hc_inpatient_num) | !is.na(hc_inpatient_days)))
 
-sci <- sci %>% mutate_at(vars(hc_inpatient_num, hc_inpatient_days), ~if_else(hc_inpatient %in% 0L, 0L, .))
+sci <- sci %>% mutate(hc_inpatient = if_else(hc_inpatient %in% 0 & (!is.na(hc_inpatient_num) | !is.na(hc_inpatient_days)), 1L, hc_inpatient))
 
-select(sci, hc_inpatient_num, hc_inpatient_days) %>% 
-  pivot_longer(everything(), names_to = "center_var", values_to = "visits") %>% 
-  count(center_var, visits) %>%
-  filter(is.na(visits) | visits == 0)
+select(sci, starts_with("hc_inpatient")) %>% 
+  filter(hc_inpatient %in% 0 & (!is.na(hc_inpatient_num) | !is.na(hc_inpatient_days)))
 
 
 # Change no inpatient visits to inpatient visits if somebody indicated that they had an inpatient visit at an SCI center
@@ -153,6 +176,11 @@ sci <- sci %>% mutate(hc_inpatient = if_else(select(., vars_inpatient_paracenter
 table(sci$hc_inpatient)
 sci %>% filter(hc_inpatient == 0 & rowSums(select(sci,vars_inpatient_paracenter), na.rm = T) > 0) %>% select(hc_inpatient, vars_inpatient_paracenter)
 
+sci %>% 
+  filter(tp == "ts2") %>% 
+  filter(hc_inpatient %in% 1) %>% 
+  select(hc_inpatient_num, hc_inpatient_days) %>% 
+  naniar::miss_var_summary()
 
 
 # Recode outpatient hospitalizations --------------------------------------
@@ -161,6 +189,7 @@ vars_ambulant_paracenter <- names(sci) %>% str_subset("ambulant") %>% str_subset
 
 
 # Recode unknown cells
+
 select(sci, hc_ambulant_planned, hc_ambulant_unplanned) %>% 
   pivot_longer(everything(), names_to = "center_var", values_to = "visits") %>% 
   count(center_var, visits)
@@ -182,7 +211,8 @@ select(sci, hc_ambulant_planned, hc_ambulant_unplanned) %>%
 sci <- sci %>% 
   mutate(
     hc_ambulant_planned = if_else(hc_ambulant_planned_num > 0L & !is.na(hc_ambulant_planned_num), 1L, hc_ambulant_planned),
-    hc_ambulant_unplanned = if_else(hc_ambulant_unplanned_num > 0L & !is.na(hc_ambulant_unplanned_num), 1L, hc_ambulant_unplanned))
+    hc_ambulant_unplanned = if_else(hc_ambulant_unplanned_num > 0L & !is.na(hc_ambulant_unplanned_num), 1L, hc_ambulant_unplanned)
+    )
 
 select(sci, hc_ambulant_planned, hc_ambulant_unplanned) %>% 
   pivot_longer(everything(), names_to = "center_var", values_to = "visits") %>% 
@@ -193,10 +223,20 @@ select(sci, hc_ambulant_planned, hc_ambulant_unplanned) %>%
 # If all specific ambulant specific variables variables are NA and if the hc_ambulant is not 1 then hc_ambulant becomes 0 
 
 table(sci$hc_ambulant, useNA = "always")
+
+if(F) {
+  select(sci, starts_with("hc_ambulant_"))
+  apply(select(sci, starts_with("hc_ambulant_")), 1, function(x) {all(is.na(x))})[1:10]
+}
+
 sci <- sci %>% mutate(hc_ambulant = if_else(pmap_lgl(select(., starts_with("hc_ambulant_")), ~all(is.na(c(...)))) & !hc_ambulant %in% 1L, 0L, hc_ambulant))
 table(sci$hc_ambulant, useNA = "always")
 
-  # If any of the specific ambulant variables are larger than 1 then hc_ambulant becomes 1
+
+# If any of the specific ambulant variables are larger than 0 then hc_ambulant becomes 1
+
+select(sci, starts_with("hc_ambulant_"))
+
 table(sci$hc_ambulant, useNA = "always")
 sci <- sci %>% mutate(hc_ambulant = if_else(pmap_lgl(select(., starts_with("hc_ambulant_")), ~any(c(...) > 0)) & is.na(hc_ambulant), 1L, hc_ambulant))
 table(sci$hc_ambulant, useNA = "always")
@@ -204,9 +244,11 @@ table(sci$hc_ambulant, useNA = "always")
 
 
 # If any of the specific ambulant variables are either NA or 0 and hc_ambulant is NA it becomes 0
+
 table(sci$hc_ambulant, useNA = "always")
 sci <- sci %>% mutate(hc_ambulant = if_else(pmap_lgl(select(., starts_with("hc_ambulant_")), ~all(is.na(na_if(c(...), 0)))) & is.na(hc_ambulant), 0L, hc_ambulant)) 
 table(sci$hc_ambulant, useNA = "always")
+
 
 # If somebody indicated not to have utilized any ambulant services then all specific ambulant services will be coded as 0
 
@@ -222,12 +264,6 @@ select(sci, starts_with("hc_ambulant_")) %>%
   count(center_var, visits) %>% 
   filter(visits == 0 | is.na(visits))
   
-# create new variable -> total number of ambulant visits
-
-sci <- sci %>% mutate(
-  hc_ambulant_num = select(., c(hc_ambulant_planned_num, hc_ambulant_unplanned_num )) %>% rowSums(na.rm = TRUE),
-  hc_ambulant_num = as.integer(hc_ambulant_num))
-  
 
 # Change no ambulant visits to ambulant visits if somebody indicated that they had an ambulant visit at an SCI center
 
@@ -239,6 +275,39 @@ sci <- sci %>% mutate(hc_ambulant = if_else(select(., vars_ambulant_paracenter) 
 sci %>% filter(hc_ambulant == 0 & rowSums(select(sci, vars_ambulant_paracenter), na.rm = T) > 0) %>% select(hc_ambulant, vars_ambulant_paracenter)
 table(sci$hc_ambulant, useNA = "always")
 
+
+
+# create new variable -> total number of ambulant visits
+
+sci <- sci %>% 
+  mutate(hc_ambulant_num = select(., c(hc_ambulant_planned_num, hc_ambulant_unplanned_num)) %>% rowSums(na.rm = TRUE) %>% as.integer()) %>% 
+  mutate(hc_ambulant_num = if_else(hc_ambulant %in% 1 & is.na(hc_ambulant_planned_num) & is.na(hc_ambulant_unplanned_num), NA_integer_, hc_ambulant_num))
+
+select(sci, hc_ambulant, hc_ambulant_num, hc_ambulant_planned_num, hc_ambulant_unplanned_num)
+
+sci %>% filter(tp == "ts2") %>% pull(hc_ambulant) %>% table() %>% prop.table()
+
+sci %>% 
+  filter(tp == "ts2") %>% 
+  filter(hc_ambulant == 1) %>% 
+  pull(hc_ambulant_num) %>% 
+  table()
+
+sci %>% 
+  filter(tp == "ts2") %>% 
+  filter(hc_ambulant == 1) %>% 
+  filter(hc_ambulant_num == 0) %>% 
+  select(id_swisci, hc_ambulant, hc_ambulant_planned_num, hc_ambulant_unplanned_num) %>% 
+  print(n = 50)
+
+sci %>% 
+  filter(tp == "ts2") %>% 
+  filter(hc_ambulant == 1) %>% 
+  pull(hc_ambulant_num) %>% 
+  ifelse( . > 0, 1, .) %>% 
+  ifelse(. %in% 0, NA, .) %>% 
+  table(useNA = "always") %>% 
+  prop.table()
 
 
 # Rename variables --------------------------------------------------------
@@ -337,6 +406,6 @@ sci <- mutate(sci, hc_inpatient_num = if_else(id_swisci == "507163" & tp == "ts1
 
 saveRDS(sci, file = file.path("workspace", "variables_modified.Rdata"))
 
-rm("ef_order", "recode_scim_20", "sci", "vars_ambulant_paracenter", "vars_inpatient_paracenter", "shc_vars",
-   "SHC_all_levels")
+rm("ef_order", "recode_scim_20", "sci", "vars_ambulant_paracenter", 
+   "vars_inpatient_paracenter", "shc_vars", "SHC_all_levels")
 

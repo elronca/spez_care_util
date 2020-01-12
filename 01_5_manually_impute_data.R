@@ -136,6 +136,52 @@ sci[sci$id_swisci == "507375", ]$time_since_sci <- c(367 - 60, 367)
 sci <- sci %>% filter(!is.na(sex))
 
 
+
+# Recode utilization variables (ambulant and inpatient --------------------
+
+
+# Code hc_ambulant_num as missing if hc_ambulant = 1 and hc_ambulant_num = 0
+
+sci %>% 
+  filter(hc_ambulant %in% 1) %>% 
+  filter(hc_ambulant_num %in% 0) %>% 
+  select(hc_ambulant, hc_ambulant_num)
+
+sci <- sci %>% mutate(hc_ambulant_num = if_else(hc_ambulant %in% 1 & hc_ambulant_num %in% 0, NA_integer_, hc_ambulant_num))
+
+sci %>% filter(tp == "ts2") %>% pull(hc_ambulant) %>% table(useNA = "always") %>% prop.table() * 100
+
+sci %>% 
+  filter(tp == "ts2" & hc_ambulant == 1) %>%  
+  miss_var_summary() %>% 
+  filter(variable == "hc_ambulant_num")
+
+
+# Code hc_inpatient_num and inpatient_days as missing if hc_inpatient = 1 and hc_ambulant_num/_days = 0
+
+sci %>% 
+  filter(hc_inpatient %in% 1) %>%
+  filter(hc_inpatient_num %in% 0) %>%
+  select(hc_inpatient, hc_inpatient_num, hc_inpatient_days)
+
+sci <- sci %>% mutate(hc_inpatient_num = if_else(hc_inpatient %in% 1 & hc_inpatient_num %in% 0, NA_integer_, hc_inpatient_num))
+
+
+sci %>% 
+  filter(hc_inpatient %in% 1) %>% 
+  filter(hc_inpatient_days %in% 0) %>%
+  select(hc_inpatient, hc_inpatient_days, hc_inpatient_num)
+
+sci <- sci %>% mutate(hc_inpatient_days = if_else(hc_inpatient %in% 1 & hc_inpatient_days %in% 0, NA_integer_, hc_inpatient_days))
+
+sci %>% filter(tp == "ts2") %>% pull(hc_inpatient) %>% table(useNA = "always") %>% prop.table() * 100
+
+sci %>% 
+  filter(tp == "ts2" & hc_inpatient == 1) %>%  
+  miss_var_summary() %>% 
+  filter(variable %in% c("hc_inpatient_num", "hc_inpatient_days"))
+
+
 # Medstat regions for Armin
 
 select(sci, id_swisci, survey = tp, medstat) %>% 
