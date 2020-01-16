@@ -112,10 +112,10 @@ raw_final_table <- full_join(check_final, outp_final, by = c("variable", "catego
          outpatient = prob.y, p_val_op = `p value.y`, 
          inpatient = prob, p_val_ip = `p value`)
 
-unique(raw_final_table$variable)
+dput(unique(raw_final_table$variable))
 
 variable_order <- c("all", "sex", "age_cat", "severity", "etiology", "language", 
-                    "problem_sexual", "problem_spasticity", "problem_injury", 
+                    "problem_sexual", "problem_spasticity", 
                     "problem_ossification","problem_cancer",
                     "dist_amb_check_up_cat", 
                     "hc_ambulant_num_cat", "hc_inpatient_num_cat", "hc_inpatient_days_cat")

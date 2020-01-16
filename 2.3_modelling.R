@@ -7,12 +7,6 @@ imp <- readRDS(file.path("workspace", "imputed_sci.RData"))
 
 # Relevel variables -------------------------------------------------------
 
-n_amb_visits <- imp %>% 
-  mice::complete("long", include = TRUE) %>% 
-  filter(hc_ambulant == 1) %>% filter(hc_ambulant_num == 0) %>% 
-  nrow() %>% 
-  sample(1:5, ., replace = T)
-
 imp$data %>% select(long_transp_barr, financial_hardship, short_transp_barr) %>% map(levels)
 
 imp <- imp %>% 
@@ -43,20 +37,15 @@ imp <- imp %>%
   
   mutate(age_cat = cut(age, breaks = c(0, 30, 45, 60, 75, Inf), labels = c("16-30", "31-45", "46-60","61-75", "75+")),
          time_since_sci_cat = cut(time_since_sci/12, breaks = c(0, 1, 4, 9, 14, Inf), labels = c("<1", "1-4", "5-9","10-14", "15+")),
+         time_since_sci_years = time_since_sci/12,
          hc_inpatient_num_cat = cut(hc_inpatient_num, breaks = c(-1, 2, 4, Inf), labels = c("1", "2-4", "5+")),
          hc_ambulant_num_cat = cut(hc_ambulant_num, breaks = c(-1, 2, 4, Inf), labels = c("1", "2-4", "5+")),
          hc_inpatient_days_cat = cut(hc_inpatient_days, breaks = c(-1, 5, 20, Inf), labels = c("1-5", "6-20", "21+")),
          sex = fct_relevel(sex, c("male", "female")),
          dist_amb_check_up_cat = cut(dist_amb_check_up, breaks = c(0, 30, 60, 90, Inf), labels = c("0-30 min", "31-60 min", "60-90 min", "90+ min")),
-         dist_inpat_cat = cut(dist_inpat, breaks = c(0, 30, 60, 90, Inf), labels = c("0-30 min", "31-60 min", "60-90 min", "90+ min")))
-
-imp[c(imp$hc_ambulant %in% 1L & imp$hc_ambulant_num %in% 0L), "hc_ambulant_num"] <- n_amb_visits
-
-imp <- as.mids(imp)
-
-mice::complete(imp, "long") %>% filter(hc_inpatient == 1) %>% pull(hc_inpatient_num) %>% table(useNA = "always")
-mice::complete(imp, "long") %>% filter(hc_inpatient == 1) %>% pull(hc_inpatient_days) %>% table(useNA = "always")
-mice::complete(imp, "long") %>% filter(hc_ambulant == 1) %>% pull(hc_ambulant_num) %>% table(useNA = "always")
+         dist_inpat_cat = cut(dist_inpat, breaks = c(0, 30, 60, 90, Inf), labels = c("0-30 min", "31-60 min", "60-90 min", "90+ min"))) %>% 
+  
+  as.mids()
 
 
 # Formulas ----------------------------------------------------------------
@@ -319,7 +308,9 @@ get_estimates <- function(.imp_data, .outcome_var, .formula_predictors, save_fit
 
 # Selection of predictor variables tested for all models ----------------------------------------
 
-soc_dem_all  <- c("sex", "age_cat", "time_since_sci_cat", "severity", "etiology", 
+mice::complete(imp, "long") %>% select(time_since_sci)
+
+soc_dem_all  <- c("sex", "age_cat", "time_since_sci_years", "severity", "etiology", 
                   "financial_hardship", "short_transp_barr", "long_transp_barr", 
                   "language", "degurba")
 
@@ -364,13 +355,14 @@ get_estimates(.imp_data = imp,
 
 form_pred_check_up <- modify_predictors(best_vars_check_up, 
                                         as_formula = TRUE,
-                                        remove_vars = c("problem_diabetes", "problem_spasticity"))
+                                        remove_vars = NULL,
+                                        add_vars = NULL)
 
 get_estimates(.imp_data = imp, 
               .outcome_var = "hc_parac_check", 
               .formula_predictors = form_pred_check_up,
-              save_fit = F,
-              save_p_values = F)
+              save_fit = T,
+              save_p_values = T)
 
 
 
@@ -406,15 +398,15 @@ get_estimates(.imp_data = imp_outp,
 # removed from the final regresion
 
 form_pred_outpat <- modify_predictors(best_vars_outp, 
-                                      remove_vars = c("problem_bladder", "etiology"), 
+                                      remove_vars = NULL, 
                                       add_vars = c("age_cat", "sex", "severity"), 
                                       as_formula = TRUE)
 
 get_estimates(.imp_data = imp_outp, 
               .outcome_var = "hc_ambulant_parac", 
               .formula_predictors = form_pred_outpat,
-              save_fit = F,
-              save_p_values = F)
+              save_fit = T,
+              save_p_values = T)
 
 
 
@@ -445,14 +437,14 @@ get_estimates(.imp_data = imp_inp,
 # The variable problem_contractures has/have a p value greater than 0.05 in the likelihood ratio test
 
 form_pred_inpat <- modify_predictors(best_vars_inpat, as_formula = TRUE, 
-                                     remove_vars = c("problem_diabetes", "problem_heart"),
+                                     remove_vars = NULL,
                                      add_vars = "age_cat")
 
 get_estimates(.imp_data = imp_inp, 
               .outcome_var = "hc_inpatient_parac", 
               .formula_predictors = form_pred_inpat,
-              save_fit = F,
-              save_p_values = F)
+              save_fit = T,
+              save_p_values = T)
 
 
 # Save best vars ----------------------------------------------------------
