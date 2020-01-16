@@ -118,7 +118,64 @@ predictor_matrix <- make.predictorMatrix(data = my_data, blocks = make.blocks(my
 predictor_matrix[, c("hc_ambulant_num", "hc_inpatient_num", "hc_inpatient_days")] <- 0L
 
 
-# Define variables not to be imputed -----------------------------------------
+
+# Now we want to avoid implausible values to be imputed -------------------
+
+# See: https://www.gerkovink.com/miceVignettes/Passive_Post_processing/Passive_imputation_post_processing.html
+
+# If somebody made an outpatient visit this persons cannot have 0 outpatient visits
+# Therefore 0 should not be imputed
+
+my_data %>% filter(hc_ambulant == 0) %>% pull(hc_ambulant_num)
+my_data %>% filter(hc_ambulant == 1) %>% pull(hc_ambulant_num) %>% table(useNA = "always")
+
+my_data %>% filter(hc_inpatient == 0) %>% pull(hc_inpatient_num)
+my_data <- mutate(my_data, hc_inpatient_num = if_else(hc_inpatient %in% 0L, 0L, hc_inpatient_num))
+my_data %>% filter(hc_inpatient == 0) %>% pull(hc_inpatient_num)
+
+my_data %>% filter(hc_inpatient == 0) %>% pull(hc_inpatient_days)
+my_data <- mutate(my_data, hc_inpatient_days = if_else(hc_inpatient %in% 0L, 0L, hc_inpatient_days))
+my_data %>% filter(hc_inpatient == 0) %>% pull(hc_inpatient_days)
+
+my_data %>% filter(hc_ambulant == 1) %>% pull(hc_ambulant_num) %>% table(useNA = "always")
+my_data %>% filter(hc_inpatient == 1) %>% pull(hc_inpatient_num) %>% table(useNA = "always")
+my_data %>% filter(hc_inpatient == 1) %>% pull(hc_inpatient_days) %>% table(useNA = "always")
+
+
+define_constrain <- function(.min, .max) {
+  
+  str_c("imp[[j]][, i] <- mice::squeeze(imp[[j]][, i], c(", .min, ", ",  .max,  "))")
+  
+}
+
+# Outpatient visits
+
+min_max_outp_num <- my_data %>% filter(hc_ambulant == 1) %>% pull(hc_ambulant_num) %>% summary() %>% .[c("Min.",  "Max.")]
+constrain_outp <- define_constrain(.min = min_max_outp_num[["Min."]], .max = min_max_outp_num[["Max."]])
+
+# Inpatient visits
+
+min_max_inp_num <- my_data %>% filter(hc_inpatient == 1) %>% pull(hc_inpatient_num) %>% summary() %>% .[c("Min.",  "Max.")]
+constrain_inp_num <- define_constrain(.min = min_max_inp_num[["Min."]], .max = min_max_inp_num[["Max."]])
+
+# Inpatient LOS
+
+min_max_inp_days <- my_data %>% filter(hc_inpatient == 1) %>% pull(hc_inpatient_days) %>% summary() %>% .[c("Min.",  "Max.")]
+constrain_inp_days <- define_constrain(.min = min_max_inp_days[["Min."]], .max = min_max_inp_days[["Max."]])
+
+ini <- mice(my_data, maxit = 0, predictorMatrix = predictor_matrix)
+
+meth <- ini$meth
+
+meth["hc_ambulant_num"] <- "pmm"
+meth["hc_inpatient_num"] <- "pmm"
+meth["hc_inpatient_days"] <- "pmm"
+
+post <- ini$post
+
+post["hc_ambulant_num"] <- constrain_outp
+post["hc_inpatient_num"] <- constrain_inp_num
+post["hc_inpatient_days"] <- constrain_inp_days
 
 
 # Start imputation --------------------------------------------------------
@@ -131,7 +188,9 @@ start_imp <- Sys.time()
 
 imp <- parlmice(data = my_data, 
                 predictorMatrix = predictor_matrix,
-                defaultMethod = c("rf", "logreg", "polyreg", "polr"),
+                meth=meth,
+                post=post,
+                # defaultMethod = c("rf", "logreg", "polyreg", "polr"),
                 n.core = n_cores, 
                 cluster.seed = 1, 
                 n.imp.core = n_imp)
@@ -180,7 +239,7 @@ imp_long %>%
 
 # Diagnostics -------------------------------------------------------------
 
-stripplot(imp, hc_ambulant_num+hc_inpatient_num+hc_inpatient_days ~.imp, jitter=T, layout=c(3, 1))
+stripplot(imp, hc_ambulant_num+hc_inpatient_num+hc_inpatient_days ~.imp, jitter=T, layout = c(3, 1))
 
 densityplot(imp)
 
@@ -224,7 +283,7 @@ xyplot(imp, completeness ~ ps|as.factor(.imp), xlab = "Probability that record i
 # of size ncol(data) containing 0/1 data. Each row in predictorMatrix identifes 
 # which predictors are to be used for the variable in the row name. If
 # diagnostics=T (the default), then mice() returns a mids object containing
-# a predictorMatrix entry.
+# a predictorMatrix entry."
 
 # imp <- mice(nhanes, print = FALSE)
 # imp$predictorMatrix
@@ -296,3 +355,6 @@ rm("end_imp", "imp_long", "my_data", "n_cores", "other_vars_to_keep",
   "outcome_vars", "outlist_all", "outlist_constant", 
   "outlist_scim", "predictor_matrix", "predictor_vars", "sci", 
   "scim_over_20_per_mis", "scim_vars", "start_imp", "fit", "ps", "n_imp")
+
+citation("mice")
+sessionInfo()

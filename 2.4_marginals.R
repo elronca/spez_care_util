@@ -99,6 +99,8 @@ inpat_data <- filter(sci, hc_inpatient == 1)
 
 inpat_final <- get_final_table(.raw_table = emm_inp, .raw_data = inpat_data, .outcome = "hc_inpatient_parac")
 
+saveRDS(list(checkup = emm_check, outp = emm_outp, inp = emm_inp), file.path("workspace", "emm_to_plot.RData"))
+
 
 
 

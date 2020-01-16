@@ -13,9 +13,20 @@ n_amb_visits <- imp %>%
   nrow() %>% 
   sample(1:5, ., replace = T)
 
+imp$data %>% select(long_transp_barr, financial_hardship, short_transp_barr) %>% map(levels)
+
 imp <- imp %>% 
   
   mice::complete("long", include = TRUE) %>% 
+  
+  mutate(long_transp_barr = fct_collapse(long_transp_barr, "had no influence" = c(
+    "had no influence", "made my life a bit more difficult"))) %>% 
+  
+  mutate(financial_hardship = fct_collapse(financial_hardship, "had no influence" = c(
+    "had no influence", "made my life a bit more difficult"))) %>% 
+  
+  mutate(short_transp_barr = fct_collapse(short_transp_barr, "had no influence" = c(
+    "had no influence", "made my life a bit more difficult"))) %>% 
   
   mutate_at(vars(lesion_level, completeness), as.character) %>% 
   
@@ -335,7 +346,7 @@ best_vars_check_up <- get_best_vars(.imp_data = imp,
 # Choose good predictors and make formula
 
 form_pred_check_up <- modify_predictors(best_vars_check_up, as_formula = TRUE, 
-                                        remove_vars = "short_transp_barr",
+                                        remove_vars = NULL,
                                         add_vars = NULL)
 
 
@@ -353,13 +364,13 @@ get_estimates(.imp_data = imp,
 
 form_pred_check_up <- modify_predictors(best_vars_check_up, 
                                         as_formula = TRUE,
-                                        remove_vars = c("problem_diabetes"))
+                                        remove_vars = c("problem_diabetes", "problem_spasticity"))
 
 get_estimates(.imp_data = imp, 
               .outcome_var = "hc_parac_check", 
               .formula_predictors = form_pred_check_up,
-              save_fit = TRUE,
-              save_p_values = TRUE)
+              save_fit = F,
+              save_p_values = F)
 
 
 
@@ -395,15 +406,15 @@ get_estimates(.imp_data = imp_outp,
 # removed from the final regresion
 
 form_pred_outpat <- modify_predictors(best_vars_outp, 
-                                      remove_vars = c("problem_bladder", "problem_diabetes"), 
+                                      remove_vars = c("problem_bladder", "etiology"), 
                                       add_vars = c("age_cat", "sex", "severity"), 
                                       as_formula = TRUE)
 
 get_estimates(.imp_data = imp_outp, 
               .outcome_var = "hc_ambulant_parac", 
               .formula_predictors = form_pred_outpat,
-              save_fit = TRUE,
-              save_p_values = TRUE)
+              save_fit = F,
+              save_p_values = F)
 
 
 
@@ -440,8 +451,8 @@ form_pred_inpat <- modify_predictors(best_vars_inpat, as_formula = TRUE,
 get_estimates(.imp_data = imp_inp, 
               .outcome_var = "hc_inpatient_parac", 
               .formula_predictors = form_pred_inpat,
-              save_fit = TRUE,
-              save_p_values = TRUE)
+              save_fit = F,
+              save_p_values = F)
 
 
 # Save best vars ----------------------------------------------------------
