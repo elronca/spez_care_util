@@ -58,6 +58,14 @@ sci <- left_join(sci, distinct(select(spatial_vars, medstat = MEDSTAT04, languag
 sci <- mutate(sci, degurba = fct_relevel(degurba, c("rural", "suburban", "urban")))
 
 
+
+# Code living arrangement -------------------------------------------------
+
+sci <- mutate(sci, liv_arrangement = fct_recode(liv_arrangement, 
+                                                alone = "1", 
+                                                not_alone = "2",
+                                                institution = "3"))
+
 # Save file and clear workspace -------------------------------------------
 
 saveRDS(sci, file.path("workspace", "outcome_vars_prepared.Rdata"))

@@ -169,10 +169,10 @@ load_swisci_data <- function(path_ds, tp, cat_vars = NULL, num_vars = NULL, othe
 
 # Load and relabel swisci data of 2012 ------------------------------------------------
 
-my_cat_vars <- c("sex", "sci_type", "sci_degree", "sci_cause_type", "ef_finances", 
+my_cat_vars <- c("sex", "sci_type", "sci_degree", "sci_cause_type", "ef_finances",
                  "hcu_inpatient","hcu_ambulant", "hcu_adm_unplanned", "hcu_adm_planned")
 
-my_num_vars <- c("age_quest_admin", "time_since_sci", "hcu_practitioner_check", "hcu_practitioner_acute", 
+my_num_vars <- c("age_quest_admin", "time_since_sci", "liv_arrangement", "hcu_practitioner_check", "hcu_practitioner_acute", 
                  "hcu_inpatient_num", "hcu_inpatient_days", "hcu_adm_unplanned_num", "hcu_adm_planned_num",
                  "hcu_paraplegic_check", "hcu_paraplegic_acute")
 
@@ -238,6 +238,7 @@ my_cat_vars <- c("sex", "sci_type", "sci_degree", "sci_cause_type", "ef_finances
                  "hc_paracenter_4_inpat", "hc_paracenter_5_inpat", "hc_paracenter_6_inpat")
 
 my_num_vars <- c("age_quest", "time_since_sci", 
+                 "liv_arrangement", 
                  "hc_practitioner_num", "hc_paraplegic_num", 
                  "hc_inpatient_num",
                  "hc_inpatient_days", "hc_ambulant_unplanned_num",

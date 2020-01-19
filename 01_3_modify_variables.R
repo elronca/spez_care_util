@@ -6,7 +6,6 @@ library(naniar)
 
 sci <- readRDS(file = file.path("workspace", "data_harmonized.Rdata"))
 
-
 # Make numeric variables numeric ------------------------------------------
 
 sci <- sci %>% mutate_at(vars(age, time_since_sci), as.numeric)
@@ -314,7 +313,9 @@ sci %>%
 
 names(sci)
 
-sci <- sci %>% select(id_swisci, tp, sex, age, time_since_sci,
+sci <- sci %>% select(id_swisci, tp, sex, age, 
+                      liv_arrangement,
+                      time_since_sci,
                       lesion_level = sci_type,
                       completeness = sci_degree, 
                       etiology = sci_cause_type,

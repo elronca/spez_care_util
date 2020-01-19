@@ -73,6 +73,9 @@ swisci_12 <- bind_cols(swisci_12, extra_cols)
 
 sci <- bind_rows(swisci_12, swisci_17) %>% arrange(as.numeric(id_swisci), tp)
 
+
+table(sci$liv_arrangement, useNA = "always")
+
 rm(swisci_12, swisci_17, extra_cols, extra_col_names, n_cols, n_rows, ids_hcu)
 
 
@@ -179,6 +182,7 @@ sci <- calc_row_sum(sci, "hc_practitioner_check", "hc_practitioner_acute", "hc_p
 
 sci <- calc_row_sum(sci, "hc_paraplegic_check", "hc_paraplegic_acute", "hc_paraplegic_num", "hc_paraplegic")
 
+sci$liv_arrangement
 
 # Save data and clear workspace -------------------------------------------
 
