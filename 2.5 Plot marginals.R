@@ -8,7 +8,7 @@ var_order <- readRDS(file.path("workspace", "vars_for_table_1.R"))
 # Bind lists with differnt utilization types
 
 to_plot_raw <- bind_rows(readRDS(file.path("workspace", "emm_to_plot.RData")), .id = "ut")
-print(to_plot_raw, n = 50)
+print(to_plot_raw, n = 70)
 
 
 # Reformat p-values
@@ -27,8 +27,10 @@ print(to_plot, n = 5)
 
 to_plot <- mutate(to_plot,
                   category = case_when(
+                    str_detect(variable, "problem_cancer") & category == "0" ~ "Absent",
+                    str_detect(variable, "problem_cancer") & category == "1" ~ "Present",
                     str_detect(variable, "problem_") & category == "0" ~ "Absent",
-                    str_detect(variable, "problem_") & category == "1" ~ "Present",
+                    str_detect(variable, "problem_") & category == "1" ~ "Significant",
                     TRUE ~ category))
 
 
@@ -55,10 +57,13 @@ variable_order <- c("all",
                     "severity", 
                     "etiology",  
                     # "time_since_sci_years_cat", 
-                    "problem_sexual", 
-                    "problem_spasticity", 
-                    "problem_ossification", 
+                    
                     "problem_cancer",
+                    "problem_spasticity", 
+                    "problem_sexual", 
+                    "problem_ossification", 
+
+                    
                     # "problem_heart",
                     "language", 
                     "dist_amb_check_up_cat", 
@@ -72,10 +77,14 @@ new_var_labels <- c("All" = "all",
                     "Lesion\nseverity" = "severity",
                     "Etiology" = "etiology",
                     # "Time since\nonset of SCI" = "time_since_sci_years_cat",
-                    "Severe sexual\ndysfunction" = "problem_sexual", 
-                    "Severe\nspasticity" = "problem_spasticity", 
-                    "Severe\nossification" = "problem_ossification", 
+                    "Spasticity" = "problem_spasticity", 
                     "Cancer" = "problem_cancer",
+                    "Sexual\ndysfunction" = "problem_sexual", 
+                   
+                    # "Severe injury\n due to loss of senssation " = "problem_ossification", 
+                    "Ossification" = "problem_ossification", 
+
+                    
                     # "Coronary heart disease" = "problem_heart",
                     "Language\nregion" = "language", 
                     "Driving time\nto specialized\ntreatment facility" = "dist_amb_check_up_cat", 
@@ -96,7 +105,8 @@ category_order <- c(
   "nontraumatic", "traumatic", 
   "Italian", "French", "German", 
   "5+", "2-4", "1", 
-  "Present", "Absent", 
+  "Significant", "Absent", 
+  "Present",
   "complete tetra", "complete para", "incomplete tetra", "incomplete para", 
   "female", "male", 
   "15+", "10-14", "5-9", "<=4",
@@ -148,9 +158,8 @@ to_plot <- mutate(to_plot,
 # Create a group of significant different categories
 
 to_plot <- mutate(to_plot,
-  lr_sig_05 = if_else(p_value_lr < 0.05, "yes", "no"),
-  lr_sig_05 = as.factor(lr_sig_05)
-)
+                  lr_sig_05 = if_else(p_value_lr < 0.05, "yes", "no"),
+                  lr_sig_05 = as.factor(lr_sig_05))
 
 
 # Prepare dataframe with information to plot text (p values)
@@ -160,9 +169,7 @@ dat_text <- to_plot %>%
   group_by(ut, variable) %>% 
   distinct(.keep_all = TRUE) %>% 
   rename(label = p_val_llrt) %>% 
-  mutate(x = -Inf, hjust = -0.2, y = Inf, vjust = 1.5)
-
-print(dat_text, n = 30)
+  mutate(x = Inf, hjust = 1.2, y = Inf, vjust = 2)
 
 
 # Plot
@@ -171,28 +178,29 @@ p <- ggplot(to_plot, aes(y = category, x = prob,
                          xmin = lower, xmax = upper,
                          color = lr_sig_05)) +
   
-  geom_point() +
-  
-  geom_errorbarh(height = 0)
+  geom_point() + geom_errorbarh(height = 0)
 
 p <- p + facet_grid(variable ~ ut, scales = "free", space = "free")
 
-p <- p + geom_text(
-  data = dat_text,  
-  mapping = aes(x = x, hjust = hjust, 
-                y = y, vjust = vjust, 
-                label = label), 
-  size = 3,
-  inherit.aes = FALSE) + 
-  scale_color_manual(values = c("grey50", "black"))+
-  scale_x_continuous(breaks = c(20, 40, 60))
+p <- p + geom_text(data = dat_text,  mapping = aes(
+  x = x, hjust = hjust, 
+  y = y, vjust = vjust, 
+  label = label), 
+  size = 2.5,
+  inherit.aes = FALSE)
+
+p <- p + scale_color_manual(values = c("grey50", "black")) +
+  scale_x_continuous(breaks = c(0, 40, 80)) +
+  expand_limits(x = c(0, 80))
 
 p <- p + 
-  xlab("Probability of specialized care utilization in the past year (%)") + 
+  xlab("Predicted probability of specialized care utilization in the past year (%)") + 
   ylab(NULL)+
   theme_bw() +
-  theme(strip.text.y = element_text(angle = 0),
-        legend.position = "none")
+  theme(strip.text.y = element_text(angle = 0), legend.position = "none",
+        axis.text.y = element_text(size = 8),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.major.y = element_blank())
 
 p
 
@@ -200,6 +208,6 @@ A4 <- c(width = 210, height = 297)
 A4["width"] <- A4["width"] * 0.9
 A4["height"] <- A4["height"] * 0.7
 
-ggsave(filename = file.path("output", "regression_plot.pdf"), 
+ggsave(filename = file.path("output", "regression_plot.pdf"),
        device = "pdf", width = A4["width"], height = A4["height"], units = "mm")
 

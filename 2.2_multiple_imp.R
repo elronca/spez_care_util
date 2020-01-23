@@ -8,7 +8,7 @@ library(parallel)
 
 sci <- readRDS(file.path("workspace", "outcome_vars_prepared.Rdata"))
 
-names(sci) %>% str_subset("hc_amb")
+names(sci) %>% str_subset("arrangement")
 
 naniar::miss_summary(sci)["miss_var_summary"] %>% unnest(cols = c(miss_var_summary)) %>% print(n = 100)
 naniar::miss_summary(sci)["miss_case_summary"] %>% unnest(cols = c(miss_case_summary)) 
@@ -184,7 +184,7 @@ post["hc_inpatient_days"] <- constrain_inp_days
 n_cores <- detectCores(all.tests = FALSE, logical = TRUE)
 
 n_imp_per_core <- if_else(n_cores <= 4, 2, 1)
-if(T) n_imp_per_core <- 5
+if(F) n_imp_per_core <- 10
 
 start_imp <- Sys.time()
 
@@ -210,6 +210,7 @@ imp <- mice::complete(imp, "long", include = TRUE) %>%
   as.mids()
 
 saveRDS(imp, file.path("workspace", "imputed_sci.RData"))
+if(F) imp <- readRDS(file.path("workspace", "imputed_sci.RData"))
 
 imp_long <- mice::complete(imp, "long")
 
@@ -237,7 +238,7 @@ imp_long %>%
 
 # Diagnostics -------------------------------------------------------------
 
-stripplot(imp, hc_ambulant_num+hc_inpatient_num+hc_inpatient_days ~.imp, jitter=T, layout = c(3, 1))
+stripplot(imp, hc_ambulant_num + hc_inpatient_num + hc_inpatient_days ~.imp, jitter=T, layout = c(3, 1))
 
 densityplot(imp)
 
@@ -245,6 +246,7 @@ fit <- with(imp, glm(ici(imp) ~ sex + age + completeness + etiology + language +
                        problem_injury + problem_sexual + problem_ossification, family = binomial))
 
 ps <- rep(rowMeans(sapply(fit$analyses, fitted.values)), imp$m + 1)
+
 xyplot(imp, completeness ~ ps|as.factor(.imp), xlab = "Probability that record is incomplete", ylab = "completeness", cex = 2)
 
 

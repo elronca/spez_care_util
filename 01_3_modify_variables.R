@@ -121,7 +121,7 @@ select(sci, starts_with("hc_paracenter_")) %>% sapply(function(x) sum(is.na(x)))
 
 vars_inpatient_paracenter <- names(sci) %>% str_subset("inpat") %>% str_subset("paracenter")
 
-select(sci, parac_inpat_vars) %>% 
+select(sci, vars_inpatient_paracenter) %>% 
   pivot_longer(everything(), names_to = "center_var", values_to = "visits") %>% 
   count(center_var, visits) %>% 
   print(n = 17)
@@ -408,5 +408,5 @@ sci <- mutate(sci, hc_inpatient_num = if_else(id_swisci == "507163" & tp == "ts1
 saveRDS(sci, file = file.path("workspace", "variables_modified.Rdata"))
 
 rm("ef_order", "recode_scim_20", "sci", "vars_ambulant_paracenter", 
-   "vars_inpatient_paracenter", "shc_vars", "SHC_all_levels")
+   "vars_inpatient_paracenter", "shc_vars", "SHC_all_levels", "parac_vars")
 

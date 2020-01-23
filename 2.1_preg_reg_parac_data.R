@@ -31,7 +31,7 @@ sci <- sci %>%
 # Bellinzona is not yet as it was very new in 2017
 
 sci <- spatial_vars %>% 
-  filter(!place %in%  c("Ente Ospedaliero Cantonale")) %>% 
+  # filter(!place %in%  c("Ente Ospedaliero Cantonale")) %>% 
   group_by(MEDSTAT04) %>% 
   filter(rank(duration_min) == 1) %>% 
   ungroup() %>% 
@@ -58,6 +58,24 @@ sci <- left_join(sci, distinct(select(spatial_vars, medstat = MEDSTAT04, languag
 sci <- mutate(sci, degurba = fct_relevel(degurba, c("rural", "suburban", "urban")))
 
 
+# Check language region ---------------------------------------------------
+
+hc_sums <- sci %>% 
+  filter(language == "Italian") %>% 
+  select(starts_with("hc_")) %>% 
+  colSums(na.rm = T) %>% 
+  .[. != 0] %>% 
+  .[str_detect(names(.), "_num|_days", negate = T)]
+
+Bellinzona <- hc_sums[str_detect(names(hc_sums), "Bellinzona")]
+Balgrist <- hc_sums[str_detect(names(hc_sums), "Balgrist")]
+SPZ <- hc_sums[str_detect(names(hc_sums), "SPZ")]
+RehaB <- hc_sums[str_detect(names(hc_sums), "RehaB")]
+
+ambulant <- hc_sums[str_detect(names(hc_sums), "_ambulant") & str_detect(names(hc_sums), "Bellinzona|Balgrist|SPZ|RehaB")]
+inpatient <- hc_sums[str_detect(names(hc_sums), "_inpat") & str_detect(names(hc_sums), "Bellinzona|Balgrist|SPZ|RehaB")]
+check <- hc_sums[str_detect(names(hc_sums), "_check") & str_detect(names(hc_sums), "Bellinzona|Balgrist|SPZ|RehaB")]
+
 
 # Code living arrangement -------------------------------------------------
 
@@ -70,4 +88,6 @@ sci <- mutate(sci, liv_arrangement = fct_recode(liv_arrangement,
 
 saveRDS(sci, file.path("workspace", "outcome_vars_prepared.Rdata"))
 
-rm("parac_amb_vars", "parac_check_vars", "parac_inpat_vars", "sci", "spatial_vars")
+rm("ambulant", "Balgrist", "Bellinzona", "check", "hc_sums", "inpatient", 
+  "parac_amb_vars", "parac_check_vars", "parac_inpat_vars", "RehaB", 
+  "sci", "spatial_vars", "SPZ")

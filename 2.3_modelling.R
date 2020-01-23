@@ -4,6 +4,10 @@ library(mice)
 
 imp_raw <- readRDS(file.path("workspace", "imputed_sci.RData"))
 
+imp_raw$m
+
+imp_raw$data %>% names()
+
 
 # Relevel variables -------------------------------------------------------
 
@@ -318,7 +322,7 @@ get_estimates <- function(.imp_data, .outcome_var, .formula_predictors,
 
 # General variables to test
 
-soc_dem_all  <- c("sex", "age_cat", "time_since_sci_years_cat", "severity", "etiology", "liv_arrangement",
+soc_dem_all  <- c("sex", "age_cat", "time_since_sci_years_cat", "severity", "etiology", "liv_arrangement", 
                   "financial_hardship", "short_transp_barr", "long_transp_barr", "language",  "degurba")
 
 
@@ -353,7 +357,7 @@ best_vars_check_up <- get_best_vars(.imp_data = imp,
 # Choose good predictors and make formula
 
 form_pred_check_up <- modify_predictors(best_vars_check_up, as_formula = TRUE, 
-                                        remove_vars = NULL,
+                                        remove_vars = "time_since_sci_years_cat", 
                                         add_vars = NULL)
 
 
@@ -368,7 +372,7 @@ get_estimates(.imp_data = imp,
 
 form_pred_check_up <- modify_predictors(best_vars_check_up, 
                                         as_formula = TRUE,
-                                        remove_vars = c("time_since_sci_years_cat", "problem_injury"),
+                                        remove_vars = c("problem_diabetes"),
                                         add_vars = NULL)
 
 get_estimates(.imp_data = imp, 
@@ -377,8 +381,6 @@ get_estimates(.imp_data = imp,
               save_fit = save_models,
               save_p_values = save_models,
               save_OR = save_models)
-
-
 
 
 # Outpatient visits -------------------------------------------------------
@@ -402,7 +404,7 @@ best_vars_outp <- get_best_vars(.imp_data = imp_outp,
 
 form_pred_outpat <- modify_predictors(best_vars_outp, 
                                       remove_vars = NULL, 
-                                      add_vars = c("dist_amb_check_up_cat"),
+                                      add_vars = c("sex", "age_cat", "severity", "dist_amb_check_up_cat"),
                                       as_formula = TRUE)
 
 get_estimates(.imp_data = imp_outp, 
@@ -414,7 +416,7 @@ get_estimates(.imp_data = imp_outp,
 
 form_pred_outpat <- modify_predictors(best_vars_outp, 
                                       remove_vars = NULL,
-                                      add_vars = c("dist_amb_check_up_cat"),
+                                      add_vars = c("sex", "age_cat", "severity", "dist_amb_check_up_cat"),
                                       as_formula = TRUE)
 
 get_estimates(.imp_data = imp_outp, 
@@ -442,8 +444,8 @@ best_vars_inpat <- get_best_vars(.imp_data = imp_inp,
                                  .add_vars = shc_vars)
 
 form_pred_inpat <- modify_predictors(best_vars_inpat, as_formula = TRUE, 
-                                     add_vars = c("severity"), 
-                                     remove_vars = "problem_contractures")
+                                     add_vars = c("age_cat"), 
+                                     remove_vars = NULL)
 
 get_estimates(.imp_data = imp_inp, 
               .outcome_var = "hc_inpatient_parac", 
@@ -453,8 +455,8 @@ get_estimates(.imp_data = imp_inp,
 
 
 form_pred_inpat <- modify_predictors(best_vars_inpat, as_formula = TRUE, 
-                                     remove_vars = c("etiology", "problem_contractures", "problem_heart"),
-                                     add_vars = NULL)
+                                     remove_vars = c("problem_contractures", "problem_diabetes", "problem_heart"),
+                                     add_vars = c("age_cat"))
 
 get_estimates(.imp_data = imp_inp, 
               .outcome_var = "hc_inpatient_parac", 
@@ -500,6 +502,8 @@ LR_table_inp <- get_OR_table(OR_inpatient) %>% rename(inp_OR = OR, inp_p_value =
 
 final_table_LR <- list(LR_table_check, LR_table_outp, LR_table_inp) %>% reduce(full_join, by = "variable")
 
+final_table_LR$variable %>% unique() %>% dput()
+
 cat_order <- c("sexfemale",
   
   "age_cat31-45", "age_cat46-60", "age_cat61-75", "age_cat75+",
@@ -530,8 +534,11 @@ mutate_all(final_table_LR, ~if_else(is.na(.), "", .)) %>%
 
 # Clear workspace ---------------------------------------------------------
 
-rm("final_vars", "best_vars_check_up", "best_vars_inpat", "best_vars_outp", 
-  "form_pred_check_up", "form_pred_inpat", "form_pred_outpat", 
-  "get_best_vars", "get_estimates", "imp", "imp_inp",
-  "imp_outp", "modify_predictors", "my_vars", "soc_dem_all",
-  "my_predictors", "shc_vars", "imp_raw", "had_no_influence", "save_models")
+rm("best_vars_check_up", "best_vars_inpat", "best_vars_outp", 
+  "cat_order", "final_table_LR", "final_vars", "form_pred_check_up", 
+  "form_pred_inpat", "form_pred_outpat", "get_best_vars", "get_estimates", 
+  "get_OR_table", "had_no_influence", "imp", "imp_inp", "imp_outp", 
+  "imp_raw", "LR_table_check", "LR_table_inp", "LR_table_outp", 
+  "modify_predictors", "my_predictors", "my_vars", "OR_ambulant", 
+  "OR_check", "OR_inpatient", "save_models", "shc_vars", "soc_dem_all"
+)
