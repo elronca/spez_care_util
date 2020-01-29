@@ -38,7 +38,7 @@ to_plot <- mutate(to_plot,
 
 new_ut_labels <- c(
   
-  "Utilization of specialized\noutpatient care" = 'outp', 
+  "Utilization of specialized\noutpatient clinic care" = 'outp', 
   "Utilization of specialized\ninpatient care" = 'inp',
   "Attendance in\nannual checkup" = 'checkup')
 
@@ -60,6 +60,7 @@ variable_order <- c("all",
                     
                     "problem_cancer",
                     "problem_spasticity", 
+                    "problem_injury",
                     "problem_sexual", 
                     "problem_ossification", 
 
@@ -78,6 +79,7 @@ new_var_labels <- c("All" = "all",
                     "Etiology" = "etiology",
                     # "Time since\nonset of SCI" = "time_since_sci_years_cat",
                     "Spasticity" = "problem_spasticity", 
+                    "Injury caused by\nloss of sensation" = "problem_injury",
                     "Cancer" = "problem_cancer",
                     "Sexual\ndysfunction" = "problem_sexual", 
                    
@@ -88,7 +90,7 @@ new_var_labels <- c("All" = "all",
                     # "Coronary heart disease" = "problem_heart",
                     "Language\nregion" = "language", 
                     "Driving time\nto specialized\ntreatment facility" = "dist_amb_check_up_cat", 
-                    "Number of\noutpatient\nvisits" = "hc_ambulant_num_cat", 
+                    "Number of\noutpatient clinic\nvisits" = "hc_ambulant_num_cat", 
                     "Number of\ninpatient\nvisits" = "hc_inpatient_num_cat",
                     "Length of\nhospital stay" = "hc_inpatient_days_cat")
 
@@ -105,8 +107,8 @@ category_order <- c(
   "nontraumatic", "traumatic", 
   "Italian", "French", "German", 
   "5+", "2-4", "1", 
-  "Significant", "Absent", 
   "Present",
+  "Significant", "Absent", 
   "complete tetra", "complete para", "incomplete tetra", "incomplete para", 
   "female", "male", 
   "15+", "10-14", "5-9", "<=4",
@@ -194,7 +196,7 @@ p <- p + scale_color_manual(values = c("grey50", "black")) +
   expand_limits(x = c(0, 80))
 
 p <- p + 
-  xlab("Predicted probability of specialized care utilization in the past year (%)") + 
+  xlab("Estimated relative frequencies of specialized care utilization in the last twelve month (%)") + 
   ylab(NULL)+
   theme_bw() +
   theme(strip.text.y = element_text(angle = 0), legend.position = "none",

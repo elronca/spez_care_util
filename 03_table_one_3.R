@@ -52,6 +52,8 @@ naniar::miss_summary(outcome_vars_data)[["miss_var_summary"]][[1]]
 
 # Frequencies and proportion
 
+N <- nrow(outcome_vars_data)
+
 outcome_vars_data %>% 
   summarize(n = n(),
           n_check_up = sum(hc_parac_check),
@@ -60,7 +62,7 @@ outcome_vars_data %>%
           n_inp = sum(hc_inpatient),
           n_inp_parac = sum(hc_inpatient_parac)) %>% 
   pivot_longer(everything(), names_to = "variable", values_to = "n_visits") %>% 
-  mutate(prop_util = 100 * n_visits / 1530) %>% 
+  mutate(prop_util = 100 * n_visits / N) %>% 
   mutate(prop_util_2 = case_when(
     variable == "n_amb_parac" ~ 100 * 235 / 713,
     variable == "n_inp_parac" ~ 100 * 178 / 403,
@@ -124,7 +126,7 @@ sci %>% filter(hc_inpatient == 1) %>% pull(hc_inpatient_days) %>% summary()
 # Missings in the predictor variables -------------------------------------
 
 used_cat_vars <- c("sex", "age_cat", "lesion_level", "completeness", "severity", "etiology", "language", 
-                   "problem_sexual", "problem_spasticity", "problem_injury", "problem_ossification", 
+                   "problem_sexual", "problem_spasticity", "problem_injury", "problem_injury", "problem_ossification", 
                    "problem_cancer", "dist_amb_check_up_cat")
 
 analysis_ds <- select(sci, used_cat_vars, "time_since_sci")
@@ -133,6 +135,8 @@ analysis_ds <- select(sci, used_cat_vars, "time_since_sci")
 ## Missings by variable
 
 naniar::miss_summary(analysis_ds)[["miss_var_summary"]][[1]]
+table(sci$time_since_sci, useNA = "always")
+
 
 
 ## Missings by participant

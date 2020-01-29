@@ -357,7 +357,7 @@ best_vars_check_up <- get_best_vars(.imp_data = imp,
 # Choose good predictors and make formula
 
 form_pred_check_up <- modify_predictors(best_vars_check_up, as_formula = TRUE, 
-                                        remove_vars = "time_since_sci_years_cat", 
+                                        remove_vars = NULL, 
                                         add_vars = NULL)
 
 
@@ -372,7 +372,7 @@ get_estimates(.imp_data = imp,
 
 form_pred_check_up <- modify_predictors(best_vars_check_up, 
                                         as_formula = TRUE,
-                                        remove_vars = c("problem_diabetes"),
+                                        remove_vars = c("time_since_sci_years_cat"),
                                         add_vars = NULL)
 
 get_estimates(.imp_data = imp, 
@@ -404,7 +404,7 @@ best_vars_outp <- get_best_vars(.imp_data = imp_outp,
 
 form_pred_outpat <- modify_predictors(best_vars_outp, 
                                       remove_vars = NULL, 
-                                      add_vars = c("sex", "age_cat", "severity", "dist_amb_check_up_cat"),
+                                      add_vars = c("sex", "age_cat"),
                                       as_formula = TRUE)
 
 get_estimates(.imp_data = imp_outp, 
@@ -415,8 +415,8 @@ get_estimates(.imp_data = imp_outp,
 
 
 form_pred_outpat <- modify_predictors(best_vars_outp, 
-                                      remove_vars = NULL,
-                                      add_vars = c("sex", "age_cat", "severity", "dist_amb_check_up_cat"),
+                                      remove_vars = "problem_bladder",
+                                      add_vars = c("sex", "age_cat"),
                                       as_formula = TRUE)
 
 get_estimates(.imp_data = imp_outp, 
@@ -444,7 +444,7 @@ best_vars_inpat <- get_best_vars(.imp_data = imp_inp,
                                  .add_vars = shc_vars)
 
 form_pred_inpat <- modify_predictors(best_vars_inpat, as_formula = TRUE, 
-                                     add_vars = c("age_cat"), 
+                                     add_vars = c("age_cat", "hc_inpatient_num_cat"), 
                                      remove_vars = NULL)
 
 get_estimates(.imp_data = imp_inp, 
@@ -455,8 +455,8 @@ get_estimates(.imp_data = imp_inp,
 
 
 form_pred_inpat <- modify_predictors(best_vars_inpat, as_formula = TRUE, 
-                                     remove_vars = c("problem_contractures", "problem_diabetes", "problem_heart"),
-                                     add_vars = c("age_cat"))
+                                     remove_vars = c("problem_contractures", "etiology"),
+                                     add_vars = c("age_cat", "hc_inpatient_num_cat"))
 
 get_estimates(.imp_data = imp_inp, 
               .outcome_var = "hc_inpatient_parac", 
@@ -512,7 +512,7 @@ cat_order <- c("sexfemale",
   
   "etiologynontraumatic", 
   
-  "problem_sexual1",  "problem_spasticity1", "problem_ossification1", "problem_cancer1", 
+  "problem_sexual1",  "problem_spasticity1", "problem_injury1", "problem_ossification1", "problem_cancer1", 
   
   "languageFrench", "languageItalian", 
   

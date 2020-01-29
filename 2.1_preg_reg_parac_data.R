@@ -2,14 +2,24 @@
 ## Prepare specialized care center variables
 
 library(tidyverse)
+library(readxl)
 
 sci <- readRDS(file.path("workspace", "manually_imputed.Rdata"))
 spatial_vars <- readRDS(file.path("workspace", "spatial_vars.RData"))
 
 
-# Reduce dataset to records of the 2017 survey ----------------------------
 
-sci <- filter(sci, tp == "ts2")
+# Reduce dataset to records of the 2017 survey and those who participated in survey 2 --------------
+
+
+q2_respondents <- read_excel(file.path("data", "pw2_participation2.xlsx")) %>% 
+  filter(Fragebogen_2 == 1) %>% 
+  pull(id_swisci) %>% 
+  unique()
+
+sci <- sci %>% 
+  filter(tp == "ts2") %>% 
+  filter(id_swisci %in% q2_respondents)
 
 
 # Prepare data for study of outpatient clinic visits ----------------------
@@ -90,4 +100,4 @@ saveRDS(sci, file.path("workspace", "outcome_vars_prepared.Rdata"))
 
 rm("ambulant", "Balgrist", "Bellinzona", "check", "hc_sums", "inpatient", 
   "parac_amb_vars", "parac_check_vars", "parac_inpat_vars", "RehaB", 
-  "sci", "spatial_vars", "SPZ")
+  "sci", "spatial_vars", "SPZ", "q2_respondents")
