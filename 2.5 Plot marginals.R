@@ -37,13 +37,13 @@ to_plot <- mutate(to_plot,
 # Change order of utilization type
 
 new_ut_labels <- c(
-  
+  "Attendance in\nannual check-up" = 'checkup',
   "Utilization of specialized\noutpatient clinic care" = 'outp', 
-  "Utilization of specialized\ninpatient care" = 'inp',
-  "Attendance in\nannual checkup" = 'checkup')
+  "Utilization of specialized\ninpatient care" = 'inp'
+  )
 
 to_plot <- mutate(to_plot, 
-                  ut = factor(ut, levels = c('outp','inp','checkup')),
+                  ut = factor(ut, levels = c('checkup', 'outp','inp')),
                   ut = fct_recode(ut, !!!new_ut_labels))
 
 
@@ -58,14 +58,13 @@ variable_order <- c("all",
                     "etiology",  
                     # "time_since_sci_years_cat", 
                     
-                    "problem_cancer",
-                    "problem_spasticity", 
-                    "problem_injury",
-                    "problem_sexual", 
+                    "problem_sexual",
                     "problem_ossification", 
-
-                    
+                    "problem_spasticity", 
+                    # "problem_injury",
+                    "problem_cancer",
                     # "problem_heart",
+                    
                     "language", 
                     "dist_amb_check_up_cat", 
                     "hc_ambulant_num_cat", 
@@ -78,13 +77,17 @@ new_var_labels <- c("All" = "all",
                     "Lesion\nseverity" = "severity",
                     "Etiology" = "etiology",
                     # "Time since\nonset of SCI" = "time_since_sci_years_cat",
-                    "Spasticity" = "problem_spasticity", 
-                    "Injury caused by\nloss of sensation" = "problem_injury",
                     "Cancer" = "problem_cancer",
+                    "Ossification" = "problem_ossification", 
                     "Sexual\ndysfunction" = "problem_sexual", 
+                    "Spasticity" = "problem_spasticity", 
+                    # "Injury caused by\nloss of sensation" = "problem_injury",
+                    
+                    
                    
                     # "Severe injury\n due to loss of senssation " = "problem_ossification", 
-                    "Ossification" = "problem_ossification", 
+                    
+                    
 
                     
                     # "Coronary heart disease" = "problem_heart",
@@ -107,8 +110,8 @@ category_order <- c(
   "nontraumatic", "traumatic", 
   "Italian", "French", "German", 
   "5+", "2-4", "1", 
-  "Present",
   "Significant", "Absent", 
+  "Present",
   "complete tetra", "complete para", "incomplete tetra", "incomplete para", 
   "female", "male", 
   "15+", "10-14", "5-9", "<=4",
@@ -161,7 +164,8 @@ to_plot <- mutate(to_plot,
 
 to_plot <- mutate(to_plot,
                   lr_sig_05 = if_else(p_value_lr < 0.05, "yes", "no"),
-                  lr_sig_05 = as.factor(lr_sig_05))
+                  lr_sig_05 = as.factor(lr_sig_05)) %>% 
+  filter(!is.na(variable))
 
 
 # Prepare dataframe with information to plot text (p values)
@@ -192,17 +196,25 @@ p <- p + geom_text(data = dat_text,  mapping = aes(
   inherit.aes = FALSE)
 
 p <- p + scale_color_manual(values = c("grey50", "black")) +
-  scale_x_continuous(breaks = c(0, 40, 80)) +
+  
+  scale_x_continuous(
+    breaks = c(0, 40, 80),
+    minor_breaks = seq(0, 80, 20)) +
   expand_limits(x = c(0, 80))
 
 p <- p + 
-  xlab("Estimated relative frequencies of specialized care utilization in the last twelve month (%)") + 
+  xlab("Estimated relative frequencies of specialized care utilization in the last twelve months (%)") + 
   ylab(NULL)+
   theme_bw() +
   theme(strip.text.y = element_text(angle = 0), legend.position = "none",
-        axis.text.y = element_text(size = 8),
-        panel.grid.minor.y = element_blank(),
-        panel.grid.major.y = element_blank())
+        axis.text.y = element_text(size = 8))
+
+p <- p + theme(
+  panel.grid.minor.y = element_blank(),
+  panel.grid.major.y = element_blank(),
+  panel.grid.minor.x = element_line(colour = "grey70", size = 0.2),
+  panel.grid.major.x = element_line(colour = "grey70", size = 0.2)
+)
 
 p
 
