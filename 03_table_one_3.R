@@ -8,6 +8,8 @@ sci <- readRDS(file.path("workspace", "outcome_vars_prepared.Rdata"))
 
 summary(sci$age)
 
+names(sci) %>% str_subset("dist_")
+
 
 # Make categories used in regressions -------------------------------------
 
@@ -141,7 +143,25 @@ table(sci$time_since_sci, useNA = "always")
 
 ## Missings by participant
 
-naniar::miss_summary(sci)[["miss_case_summary"]][[1]]
+naniar::miss_summary(sci)[["miss_case_summary"]][[1]] %>% 
+  mutate(pct_miss_zero = if_else(pct_miss == 0, 1L, 0L)) %>% 
+  pull(pct_miss_zero) %>% 
+  table()
+
+naniar::miss_summary(select(sci, used_cat_vars))[["miss_case_summary"]][[1]] %>% 
+  mutate(pct_miss_zero = if_else(pct_miss == 0, 1L, 0L)) %>% 
+  pull(pct_miss_zero) %>% 
+  table() %>% 
+  prop.table() * 100
+
+# Have a look at sexual dysfunction by sex
+
+sci %>% 
+  group_by(sex) %>% 
+  count(problem_sexual) %>% 
+  mutate(n_cases = sum(n),
+         perc = 100 * n / n_cases)
+
 
 
 # Calculate relative frequencies of categories across discrete variables ---------------------------------------
@@ -242,6 +262,46 @@ print(bt, n = 35)
 write.csv2(bt, file.path("output", "_table_1_final_categ_vars.csv"), row.names = FALSE)
 
 
+
+## Get table one for outpatient clinic visitors
+
+
+categ_data_outp <- sci %>% 
+  filter(hc_ambulant == 1) %>% 
+  select(tp, used_cat_vars) %>% 
+  mutate_if(is.integer, ~case_when(. == 1 ~ "yes", 
+                                   . == 0 ~ "no",
+                                   TRUE ~ NA_character_)) %>% 
+  mutate_if(is.character, as.factor)
+
+bt_outp <- get_bt_discrete_vars(categ_data_outp, vars_to_remove_missings = used_cat_vars)
+
+print(bt_outp, n = 35)
+
+write.csv2(bt_outp, file.path("output", "_table_1_final_categ_vars_outp.csv"), row.names = FALSE)
+
+
+
+## Get table one for inpatient care users
+
+used_cat_vars_inp <- c(str_subset(used_cat_vars, "dist_amb_check_up_cat", negate = TRUE), "dist_inpat_cat")
+
+
+categ_data_inp <- sci %>% 
+  filter(hc_inpatient == 1) %>% 
+  select(tp, used_cat_vars, dist_inpat_cat, -dist_amb_check_up_cat) %>% 
+  mutate_if(is.integer, ~case_when(. == 1 ~ "yes", 
+                                   . == 0 ~ "no",
+                                   TRUE ~ NA_character_)) %>% 
+  mutate_if(is.character, as.factor)
+
+bt_inp <- get_bt_discrete_vars(categ_data_inp, vars_to_remove_missings = used_cat_vars_inp)
+
+print(bt_inp, n = 35)
+
+write.csv2(bt_inp, file.path("output", "_table_1_final_categ_vars_inp.csv"), row.names = FALSE)
+
+
 # Summarize continuous variables ------------------------------------------------------------------------------------
 
 get_bt_continous_vars <- function(df, n_digits = 0, .tp = "ts1", my_vars, get_iqr = TRUE, get_prop = FALSE, 
@@ -321,6 +381,8 @@ get_bt_continous_vars <- function(df, n_digits = 0, .tp = "ts1", my_vars, get_iq
   
 }
 
+names(sci)
+
 
 
 # Continuous socio-demographic variables of all participants ------------------------------------
@@ -328,6 +390,20 @@ get_bt_continous_vars <- function(df, n_digits = 0, .tp = "ts1", my_vars, get_iq
 bt_cont_vars <- get_bt_continous_vars(sci, my_vars = c("age", "time_since_sci", "dist_amb_check_up"), .tp = "ts2")
 
 write.csv2(bt_cont_vars, file.path("output", "_table_1_final_cont_vars.csv"), row.names = FALSE)
+
+
+## Outpatient clinic care users
+
+bt_cont_vars_outp <- get_bt_continous_vars(filter(sci, hc_ambulant == 1), my_vars = c("age", "time_since_sci", "dist_amb_check_up"), .tp = "ts2")
+
+write.csv2(bt_cont_vars_outp, file.path("output", "_table_1_final_cont_vars_outp.csv"), row.names = FALSE)
+
+
+## Inpatient care users
+
+bt_cont_vars_inp <- get_bt_continous_vars(filter(sci, hc_inpatient == 1), my_vars = c("age", "time_since_sci", "dist_inpat"), .tp = "ts2")
+
+write.csv2(bt_cont_vars_inp, file.path("output", "_table_1_final_cont_vars_inp.csv"), row.names = FALSE)
 
 rm("amb_res_data", "analysis_ds", "bt", "bt_cont_vars", "categ_data", "get_bt_continous_vars", 
    "get_bt_discrete_vars", "inp_los_data", "inp_num_data", "outcome_vars", "outcome_vars_data", 

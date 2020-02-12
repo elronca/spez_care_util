@@ -78,7 +78,7 @@ new_var_labels <- c("All" = "all",
                     "Etiology" = "etiology",
                     # "Time since\nonset of SCI" = "time_since_sci_years_cat",
                     "Cancer" = "problem_cancer",
-                    "Ossification" = "problem_ossification", 
+                    "Heterotopic\nossification" = "problem_ossification", 
                     "Sexual\ndysfunction" = "problem_sexual", 
                     "Spasticity" = "problem_spasticity", 
                     # "Injury caused by\nloss of sensation" = "problem_injury",
@@ -95,7 +95,7 @@ new_var_labels <- c("All" = "all",
                     "Driving time\nto specialized\ntreatment facility" = "dist_amb_check_up_cat", 
                     "Number of\noutpatient clinic\nvisits" = "hc_ambulant_num_cat", 
                     "Number of\ninpatient\nvisits" = "hc_inpatient_num_cat",
-                    "Length of\nhospital stay" = "hc_inpatient_days_cat")
+                    "Number of\ndays in\nhospital " = "hc_inpatient_days_cat")
 
 to_plot <- mutate(to_plot, 
                   variable = factor(variable, levels = variable_order),

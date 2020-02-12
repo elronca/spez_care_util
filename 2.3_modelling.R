@@ -143,7 +143,7 @@ get_best_vars <- function(.imp_data, .predictor_vars, .response_var, .reg_family
       fit.without <- with(.imp_data, glm(formula = as.formula(formula_without), family = .reg_family))
       fit.without$analyses
       
-      # Fit multiple regression with all the variables to include plut the additinal candiadate variables
+      # Fit multiple regression with all the variables to include plus the additinal candiadate variables
       fit.with <- map(formula_with, ~with(.imp_data, glm(formula = as.formula(.), family = .reg_family)))
       
       # Get the p values from the Wald test between the models with and without the candidate variables
