@@ -1,0 +1,9 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+data/
+output/
+workspace/
+workspace_backup/
+code_backup/
