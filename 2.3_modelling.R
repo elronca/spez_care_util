@@ -4,9 +4,13 @@ library(mice)
 
 imp_raw <- readRDS(file.path("workspace", "imputed_sci.RData"))
 
+names(imp_raw)
+
 imp_raw$m
 
 imp_raw$data %>% names()
+
+table(imp_raw$method)
 
 
 # Relevel variables -------------------------------------------------------

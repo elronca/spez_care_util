@@ -202,6 +202,8 @@ end_imp - start_imp
 
 imp$loggedEvents
 
+?mice
+
 
 # Remove factor order from imputed datasets --------------------------------------
 
